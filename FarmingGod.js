@@ -5,7 +5,9 @@ Link to forum page discussion regarding this script and its approval by the TW s
 
 All credit goes to the original creator - it appears as if that is someone by the name of 'Warre'
 
-Quickbar entry: 
+Quickbar entry (two options):
+javascript: $.getScript('https://raw.githubusercontent.com/tgreer812/TribalWarsScripts/refs/heads/main/FarmingGod.js');
+javascript: $.getScript('https://higamy.github.io/TW/Scripts/Approved/FarmGodCopy.js');
 */
 
 // Hungarian translation provided by =Krumpli=
