@@ -1,6 +1,10 @@
 // TRIBAL WARS SNIPE TIMING CALC
 // Script registration and initialization following FarmingGod pattern
 let DEBUG = true;
+let branch = "main";
+let scriptHost = "https://raw.githubusercontent.com"
+let sdkPath = `${scriptHost}/tgreer812/TribalWarsScripts/refs/heads/${branch}/twsdk.js`
+
 console.log("script ran");
 // if (!DEBUG && typeof ScriptAPI !== 'undefined' && ScriptAPI.register) {
 //     ScriptAPI.register('SnipeTiming', true, 'YourName', 'your.email@example.com');
@@ -8,7 +12,7 @@ console.log("script ran");
 
 // Load TWSDK if not already loaded
 if (typeof window.TWSDK === 'undefined') {
-    fetch('https://raw.githubusercontent.com/tgreer812/TribalWarsScripts/refs/heads/main/twsdk.js')
+    fetch(sdkPath)
         .then(response => response.text())
         .then(script => {
             eval(script);
@@ -87,8 +91,7 @@ function initializeSnipeTiming() {
                     travelTime: 'Travel Time',
                     arrival: 'Arrival',
                     actions: 'Actions',
-                    copy: 'Copy',
-                    setTimer: 'Set Timer'
+                    copy: 'Copy'
                 },
                 units: {
                     snob: 'Noble',
@@ -294,6 +297,9 @@ function initializeSnipeTiming() {
             
             Dialog.show('SnipeTiming', html);
             bindEventHandlers();
+            
+            // Fetch user's villages after dialog is shown
+            fetchUserVillages();
         };
         
         // Build unit checkboxes
@@ -314,14 +320,11 @@ function initializeSnipeTiming() {
             return html;
         };
         
-        // Build village rows (placeholder data for now)
-        const buildVillageRows = function() {
-            // Placeholder village data
-            const villages = [
-                { name: 'Village 001', coords: '500|500', id: 1, troops: { snob: 1, heavy: 50, light: 100 } },
-                { name: 'Village 002', coords: '505|502', id: 2, troops: { snob: 0, heavy: 30, light: 80 } },
-                { name: 'Village 003', coords: '498|505', id: 3, troops: { snob: 2, heavy: 100, light: 200 } }
-            ];
+        // Build village rows from actual village data
+        const buildVillageRows = function(villages) {
+            if (!villages || villages.length === 0) {
+                return '<tr><td colspan="5" style="text-align: center;">Loading villages...</td></tr>';
+            }
             
             let html = '';
             villages.forEach(village => {
@@ -341,6 +344,69 @@ function initializeSnipeTiming() {
             });
             
             return html;
+        };
+        
+        // Fetch user's villages and troop counts
+        const fetchUserVillages = function() {
+            // Show loading indicator
+            $('#village-list').html('<tr><td colspan="5" style="text-align: center;">Loading villages...</td></tr>');
+            
+            // Use TWSDK's page processing to get all villages
+            window.TWSDK.Page.processAllPages(
+                TribalWars.buildURL('GET', 'overview_villages', {
+                    mode: 'combined',
+                    group: 0 // All villages
+                }),
+                function($html) {
+                    // Process each page of villages
+                    processVillageData($html);
+                }
+            ).then(function() {
+                // Update the village table with fetched data
+                updateVillageTable();
+            }).fail(function() {
+                $('#village-list').html('<tr><td colspan="5" style="text-align: center; color: red;">Failed to load villages</td></tr>');
+            });
+        };
+        
+        // Process village data from overview page
+        const processVillageData = function($html) {
+            const skipUnits = ['ram', 'catapult', 'knight', 'militia']; // Skip non-sniping units
+            
+            $html.find('#combined_table').find('.row_a, .row_b').each(function() {
+                const $row = $(this);
+                const $villageLink = $row.find('.quickedit-label').first();
+                const villageId = $row.find('.quickedit-vn').first().data('id');
+                const villageName = $villageLink.data('text');
+                const villageCoords = $villageLink.text().match(/\d{1,3}\|\d{1,3}/)[0];
+                
+                // Get troop counts
+                const troops = {};
+                $row.find('.unit-item').each(function(index) {
+                    const unitType = game_data.units[index];
+                    if (unitType && skipUnits.indexOf(unitType) === -1) {
+                        const count = parseInt($(this).text()) || 0;
+                        if (count > 0) {
+                            troops[unitType] = count;
+                        }
+                    }
+                });
+                
+                // Store village data
+                villageData[villageId] = {
+                    id: villageId,
+                    name: villageName,
+                    coords: villageCoords,
+                    troops: troops
+                };
+            });
+        };
+        
+        // Update the village table with fetched data
+        const updateVillageTable = function() {
+            const villages = Object.values(villageData);
+            const html = buildVillageRows(villages);
+            $('#village-list').html(html);
         };
         
         // Event handlers
@@ -380,7 +446,6 @@ function initializeSnipeTiming() {
                     <td style="color: green;">✓ ${window.TWSDK.Core.formatDateTime(new Date().getTime() + 7200000, true)}</td>
                     <td>
                         <button class="btn btn-small">${t.results.copy}</button>
-                        <button class="btn btn-small">${t.results.setTimer}</button>
                     </td>
                 </tr>
                 <tr>
@@ -391,7 +456,6 @@ function initializeSnipeTiming() {
                     <td style="color: green;">✓ ${window.TWSDK.Core.formatDateTime(new Date().getTime() + 7200000, true)}</td>
                     <td>
                         <button class="btn btn-small">${t.results.copy}</button>
-                        <button class="btn btn-small">${t.results.setTimer}</button>
                     </td>
                 </tr>
             `;
