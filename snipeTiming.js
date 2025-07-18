@@ -102,7 +102,12 @@ function initializeSnipeTiming() {
                     sword: 'Sword',
                     spear: 'Spear',
                     archer: 'Archer'
-                }
+                },
+                debug: 'Debug mode',
+                debugInfo: 'Debug Information',
+                worldSpeed: 'World Speed',
+                unitSpeed: 'Unit Speed',
+                serverTime: 'Server Time',
             }
         };
         
@@ -128,6 +133,9 @@ function initializeSnipeTiming() {
         
         let villageData = {};  // Store user's villages and available troops
         let calculatedTimings = [];  // Store calculated snipe timings
+        let worldSpeed = 1;  // Store world speed
+        let unitSpeedModifier = 1;  // Store unit speed modifier
+        let debugMode = false;  // Debug mode flag
         
         // Initialize function - entry point
         const init = function() {
@@ -137,8 +145,36 @@ function initializeSnipeTiming() {
                 return;
             }
             
+            // Fetch world speed on init
+            fetchWorldSpeed();
+            
             // Show main dialog
             buildMainDialog();
+        };
+        
+        // Fetch world speed from game data
+        const fetchWorldSpeed = function() {
+            worldSpeed = window.TWSDK.Core.getWorldSpeed();
+            unitSpeedModifier = window.TWSDK.Core.getUnitSpeed();
+            updateDebugInfo();
+        };
+        
+        // Update debug information display
+        const updateDebugInfo = function() {
+            if (debugMode && $('#debug-info').length) {
+                const serverTime = window.TWSDK.Core.getCurrentServerTime();
+                const debugHtml = `
+                    <div style="padding: 10px; background: #f4f4f4; border: 1px solid #ccc; font-size: 12px;">
+                        <strong>${t.debugInfo}:</strong><br>
+                        ${t.worldSpeed}: ${worldSpeed}x<br>
+                        ${t.unitSpeed}: ${unitSpeedModifier}x<br>
+                        ${t.serverTime}: ${new Date(serverTime).toLocaleString()}<br>
+                        Target Coords: ${targetData.coords || 'Not set'}<br>
+                        Villages Loaded: ${Object.keys(villageData).length}
+                    </div>
+                `;
+                $('#debug-info').html(debugHtml);
+            }
         };
         
         // Build main UI dialog
@@ -213,6 +249,12 @@ function initializeSnipeTiming() {
                         font-size: 14px;
                         padding: 10px 20px;
                     }
+                    .debug-section {
+                        margin-top: 10px;
+                        padding: 10px;
+                        background: #f9f9f9;
+                        border: 1px dashed #999;
+                    }
                 </style>
             `;
             
@@ -220,6 +262,16 @@ function initializeSnipeTiming() {
                 ${styles}
                 <div class="snipe-content">
                     <h2>${t.title}</h2>
+                    
+                    <!-- Debug checkbox -->
+                    <div style="text-align: right; margin-bottom: 10px;">
+                        <label>
+                            <input type="checkbox" id="debug-mode"> ${t.debug}
+                        </label>
+                    </div>
+                    
+                    <!-- Debug section (initially hidden) -->
+                    <div class="debug-section" id="debug-info" style="display: none;"></div>
                     
                     <!-- Target Information Section -->
                     <div class="snipe-section">
@@ -328,12 +380,16 @@ function initializeSnipeTiming() {
             
             let html = '';
             villages.forEach(village => {
+                const distance = targetData.coords ? 
+                    window.TWSDK.Coords.distance(village.coords, targetData.coords).toFixed(1) : 
+                    '0.0';
+                    
                 html += `
                     <tr>
                         <td><input type="checkbox" class="village-checkbox" data-id="${village.id}"></td>
                         <td><a href="/game.php?village=${village.id}&screen=overview">${village.name}</a></td>
                         <td>${village.coords}</td>
-                        <td>0.0</td>
+                        <td class="distance-cell" data-coords="${village.coords}">${distance}</td>
                         <td>
                             ${village.troops.snob > 0 ? `<img src="/graphic/unit/unit_snob.png" title="Noble"> ${village.troops.snob}` : ''}
                             ${village.troops.heavy > 0 ? `<img src="/graphic/unit/unit_heavy.png" title="Heavy"> ${village.troops.heavy}` : ''}
@@ -428,40 +484,180 @@ function initializeSnipeTiming() {
                 $('#select-all-checkbox').prop('checked', false);
             });
             
+            // Debug mode toggle
+            $('#debug-mode').on('change', function() {
+                debugMode = $(this).is(':checked');
+                if (debugMode) {
+                    $('#debug-info').show();
+                    updateDebugInfo();
+                } else {
+                    $('#debug-info').hide();
+                }
+            });
+            
+            // Target coordinates input - real-time distance update
+            $('#snipe-target-coords').on('input', function() {
+                const coords = $(this).val();
+                const parsed = window.TWSDK.Coords.parse(coords);
+                
+                if (parsed) {
+                    targetData.coords = coords;
+                    updateDistances();
+                    updateDebugInfo();
+                } else {
+                    targetData.coords = null;
+                    updateDistances();
+                    updateDebugInfo();
+                }
+            });
+            
+            // Arrival time input
+            $('#snipe-arrival-time').on('input', function() {
+                const timeStr = $(this).val();
+                if (timeStr) {
+                    targetData.arrivalTime = lib.parseIncomingTime(timeStr);
+                    updateDebugInfo();
+                }
+            });
+            
             // Calculate button
             $('.calculate-button').on('click', function() {
-                // Show placeholder results
-                showPlaceholderResults();
+                calculateTimings();
             });
         };
         
-        // Show placeholder results
-        const showPlaceholderResults = function() {
-            const resultsHtml = `
-                <tr>
-                    <td><a href="#">Village 001</a></td>
-                    <td><img src="/graphic/unit/unit_snob.png" title="Noble"> Noble</td>
-                    <td style="font-family: monospace;">${window.TWSDK.Core.formatDateTime(new Date().getTime() + 3600000, true)}</td>
-                    <td>${window.TWSDK.Core.formatDuration(8100)}</td>
-                    <td style="color: green;">✓ ${window.TWSDK.Core.formatDateTime(new Date().getTime() + 7200000, true)}</td>
-                    <td>
-                        <button class="btn btn-small">${t.results.copy}</button>
-                    </td>
-                </tr>
-                <tr>
-                    <td><a href="#">Village 003</a></td>
-                    <td><img src="/graphic/unit/unit_heavy.png" title="Heavy"> Heavy</td>
-                    <td style="font-family: monospace;">${window.TWSDK.Core.formatDateTime(new Date().getTime() + 4500000, true)}</td>
-                    <td>${window.TWSDK.Core.formatDuration(6780)}</td>
-                    <td style="color: green;">✓ ${window.TWSDK.Core.formatDateTime(new Date().getTime() + 7200000, true)}</td>
-                    <td>
-                        <button class="btn btn-small">${t.results.copy}</button>
-                    </td>
-                </tr>
-            `;
+        // Update all distance cells when target coordinates change
+        const updateDistances = function() {
+            if (!targetData.coords) {
+                $('.distance-cell').text('0.0');
+                return;
+            }
             
-            $('#results-tbody').html(resultsHtml);
+            $('.distance-cell').each(function() {
+                const villageCoords = $(this).data('coords');
+                const distance = window.TWSDK.Coords.distance(villageCoords, targetData.coords);
+                $(this).text(distance ? distance.toFixed(1) : '0.0');
+            });
+        };
+        
+        // Calculate snipe timings
+        const calculateTimings = function() {
+            // Get selected units
+            const selectedUnits = [];
+            $('.unit-checkbox input:checked').each(function() {
+                selectedUnits.push($(this).val());
+            });
+            
+            // Get selected villages
+            const selectedVillages = [];
+            $('.village-checkbox:checked').each(function() {
+                const villageId = $(this).data('id');
+                if (villageData[villageId]) {
+                    selectedVillages.push(villageData[villageId]);
+                }
+            });
+            
+            // Validate inputs
+            if (!targetData.coords) {
+                UI.ErrorMessage('Please enter target coordinates');
+                return;
+            }
+            
+            if (!targetData.arrivalTime) {
+                UI.ErrorMessage('Please enter incoming arrival time');
+                return;
+            }
+            
+            if (selectedUnits.length === 0) {
+                UI.ErrorMessage('Please select at least one unit type');
+                return;
+            }
+            
+            if (selectedVillages.length === 0) {
+                UI.ErrorMessage('Please select at least one village');
+                return;
+            }
+            
+            // Calculate timings
+            calculatedTimings = [];
+            
+            selectedVillages.forEach(village => {
+                selectedUnits.forEach(unitType => {
+                    // Check if village has this unit
+                    if (!village.troops[unitType] || village.troops[unitType] === 0) {
+                        return;
+                    }
+                    
+                    // Calculate travel time
+                    const travelTime = lib.calculateTravelTime(village.coords, targetData.coords, unitType);
+                    
+                    // Calculate send time (arrival time - travel time - offset)
+                    const sendTime = targetData.arrivalTime - (travelTime * 1000) - targetData.snipeOffset;
+                    const arrivalTime = sendTime + (travelTime * 1000);
+                    
+                    calculatedTimings.push({
+                        village: village,
+                        unit: unitType,
+                        sendTime: sendTime,
+                        travelTime: travelTime,
+                        arrivalTime: arrivalTime
+                    });
+                });
+            });
+            
+            // Sort by send time
+            calculatedTimings.sort((a, b) => a.sendTime - b.sendTime);
+            
+            // Display results
+            displayResults();
+        };
+        
+        // Display calculation results
+        const displayResults = function() {
+            if (calculatedTimings.length === 0) {
+                $('#results-tbody').html('<tr><td colspan="6" style="text-align: center;">No valid snipe timings found</td></tr>');
+                $('#snipe-results').show();
+                return;
+            }
+            
+            let html = '';
+            calculatedTimings.forEach(timing => {
+                const arrivalDiff = timing.arrivalTime - targetData.arrivalTime;
+                const isGood = Math.abs(arrivalDiff - targetData.snipeOffset) < 100; // Within 100ms tolerance
+                
+                html += `
+                    <tr>
+                        <td><a href="/game.php?village=${timing.village.id}&screen=overview">${timing.village.name}</a></td>
+                        <td><img src="/graphic/unit/unit_${timing.unit}.png" title="${t.units[timing.unit]}"> ${t.units[timing.unit]}</td>
+                        <td style="font-family: monospace;">${window.TWSDK.Core.formatDateTime(timing.sendTime, true)}</td>
+                        <td>${window.TWSDK.Core.formatDuration(timing.travelTime)}</td>
+                        <td style="color: ${isGood ? 'green' : 'red'};">
+                            ${isGood ? '✓' : '✗'} ${window.TWSDK.Core.formatDateTime(timing.arrivalTime, true)}
+                        </td>
+                        <td>
+                            <button class="btn btn-small copy-time" data-time="${timing.sendTime}">${t.results.copy}</button>
+                        </td>
+                    </tr>
+                `;
+            });
+            
+            $('#results-tbody').html(html);
             $('#snipe-results').show();
+            
+            // Bind copy buttons
+            $('.copy-time').on('click', function() {
+                const time = new Date($(this).data('time'));
+                const timeStr = window.TWSDK.Core.formatDateTime(time.getTime(), true);
+                
+                // Copy to clipboard
+                const temp = $('<input>');
+                $('body').append(temp);
+                temp.val(timeStr).select();
+                document.execCommand('copy');
+                temp.remove();
+                
+                UI.SuccessMessage('Time copied to clipboard: ' + timeStr);
+            });
         };
         
         return {
@@ -476,10 +672,5 @@ function initializeSnipeTiming() {
     })();
 }
 
-// Simple URL test - paste this in browser URL bar:
+// Simple URL test - paste this in console
 // fetch('https://raw.githubusercontent.com/tgreer812/TribalWarsScripts/refs/heads/main/snipeTiming.js')
-//     .then(response => response.text())
-//     .then(text => {
-//     console.log("Script content:", text.substring(0, 100));
-//     eval(text);
-//     });
