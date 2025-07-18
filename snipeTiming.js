@@ -558,6 +558,10 @@ console.log('TWSDK is ready, initializing...');
 window.TWSDK.Core.init().then(() => {
     console.log('TWSDK initialized successfully');
     initializeSnipeTiming();
+}).catch(error => {
+    console.error('TWSDK initialization failed:', error);
+    // Still try to initialize the script with fallback data
+    initializeSnipeTiming();
 });
 
 function initializeSnipeTiming() {
@@ -677,25 +681,46 @@ function initializeSnipeTiming() {
         let worldSettings = {};  // Store all world settings
         
         // Initialize function - entry point
-        const init = function() {
+        const init = async function() {
             // Check for premium features if needed
             if (!game_data.features.Premium.active) {
                 UI.ErrorMessage('This script requires a premium account');
                 return;
             }
             
-            // World settings should already be loaded from SDK init
-            fetchWorldSpeed();
-            // Show main dialog
+            // Show main dialog with loading state
             buildMainDialog();
+            
+            // Wait for world settings to be loaded, then populate UI
+            await fetchWorldSpeed();
+            
+            // Fetch user's villages after world settings are loaded
+            fetchUserVillages();
         };
         
-        // Fetch world speed from SDK
-        const fetchWorldSpeed = function() {
-            worldSpeed = window.TWSDK.Core.getWorldSpeed();
-            unitSpeedModifier = window.TWSDK.Core.getUnitSpeed();
-            worldSettings = window.TWSDK.Core.getWorldSettings();
-            updateDebugInfo();
+        // Fetch world speed from SDK - now properly async
+        const fetchWorldSpeed = async function() {
+            try {
+                // Ensure world settings are loaded
+                await window.TWSDK.Core.fetchWorldSettings();
+                
+                worldSpeed = window.TWSDK.Core.getWorldSpeed();
+                unitSpeedModifier = window.TWSDK.Core.getUnitSpeed();
+                worldSettings = window.TWSDK.Core.getWorldSettings();
+                
+                console.log('World settings loaded:', worldSettings);
+                updateDebugInfo();
+            } catch (error) {
+                console.error('Failed to fetch world settings:', error);
+                // Use fallbacks
+                worldSpeed = game_data.speed || 1;
+                unitSpeedModifier = game_data.unit_speed || 1;
+                worldSettings = {
+                    'Game speed': worldSpeed,
+                    'Unit speed': unitSpeedModifier
+                };
+                updateDebugInfo();
+            }
         };
         
         // Update debug information display
@@ -802,6 +827,12 @@ function initializeSnipeTiming() {
                         background: #f9f9f9;
                         border: 1px dashed #999;
                     }
+                    .loading-indicator {
+                        text-align: center;
+                        padding: 20px;
+                        font-style: italic;
+                        color: #666;
+                    }
                 </style>
             `;
             
@@ -818,7 +849,9 @@ function initializeSnipeTiming() {
                     </div>
                     
                     <!-- Debug section (initially hidden) -->
-                    <div class="debug-section" id="debug-info" style="display: none;"></div>
+                    <div class="debug-section" id="debug-info" style="display: none;">
+                        <div class="loading-indicator">Loading world settings...</div>
+                    </div>
                     
                     <!-- Target Information Section -->
                     <div class="snipe-section">
@@ -864,7 +897,7 @@ function initializeSnipeTiming() {
                                 </tr>
                             </thead>
                             <tbody id="village-list">
-                                ${buildVillageRows()}
+                                <tr><td colspan="5" class="loading-indicator">Loading villages...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -896,9 +929,6 @@ function initializeSnipeTiming() {
             
             Dialog.show('SnipeTiming', html);
             bindEventHandlers();
-            
-            // Fetch user's villages after dialog is shown
-            fetchUserVillages();
         };
         
         // Build unit checkboxes
@@ -951,8 +981,8 @@ function initializeSnipeTiming() {
         
         // Fetch user's villages and troop counts
         const fetchUserVillages = function() {
-            // Show loading indicator
-            $('#village-list').html('<tr><td colspan="5" style="text-align: center;">Loading villages...</td></tr>');
+            // Show loading indicator (already shown in buildMainDialog)
+            $('#village-list').html('<tr><td colspan="5" class="loading-indicator">Loading villages...</td></tr>');
             
             // Use TWSDK's page processing to get all villages
             window.TWSDK.Page.processAllPages(
