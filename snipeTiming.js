@@ -13,8 +13,9 @@ if (typeof window.TWSDK === 'undefined') {
             console.log('TWSDK loaded successfully');
             initializeSnipeTiming();
         })
-        .fail(function() {
+        .fail(function(jqxhr, settings, exception) {
             UI.ErrorMessage('Failed to load TWSDK. Please try again.');
+            console.log('TWSDK load error:', exception, 'Status:', jqxhr.status, 'Response:', jqxhr.responseText);
         });
 } else {
     initializeSnipeTiming();
