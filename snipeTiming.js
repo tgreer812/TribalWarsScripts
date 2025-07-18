@@ -11,24 +11,41 @@ console.log("script ran");
 // }
 
 // Load TWSDK if not already loaded
-if (typeof window.TWSDK === 'undefined') {
+if (typeof window.TWSDK === 'undefined' || !window.TWSDK._ready) {
     fetch(sdkPath)
         .then(response => response.text())
         .then(script => {
+            // Create a temporary function to check if SDK is ready
+            const checkSDKReady = function() {
+                return new Promise((resolve, reject) => {
+                    let attempts = 0;
+                    const maxAttempts = 50; // 5 seconds max wait
+                    
+                    const checkInterval = setInterval(() => {
+                        attempts++;
+                        
+                        if (window.TWSDK && window.TWSDK._ready && window.TWSDK.Core && typeof window.TWSDK.Core.init === 'function') {
+                            clearInterval(checkInterval);
+                            resolve();
+                        } else if (attempts >= maxAttempts) {
+                            clearInterval(checkInterval);
+                            reject(new Error('TWSDK failed to load properly after 5 seconds'));
+                        }
+                    }, 100); // Check every 100ms
+                });
+            };
+            
+            // Execute the SDK script
             eval(script);
             console.log('TWSDK loaded successfully');
             
-            // Small delay to ensure all functions are available
-            return new Promise(resolve => setTimeout(resolve, 100));
+            // Wait for SDK to be ready
+            return checkSDKReady();
         })
         .then(() => {
-            // Check if SDK is properly loaded
-            if (window.TWSDK && window.TWSDK.Core && typeof window.TWSDK.Core.init === 'function') {
-                // Initialize SDK before using it
-                return window.TWSDK.Core.init();
-            } else {
-                throw new Error('TWSDK not properly loaded');
-            }
+            console.log('TWSDK is ready, initializing...');
+            // Initialize SDK before using it
+            return window.TWSDK.Core.init();
         })
         .then(() => {
             console.log('TWSDK initialized successfully');
@@ -39,10 +56,18 @@ if (typeof window.TWSDK === 'undefined') {
             console.log('TWSDK load error:', error);
         });
 } else {
+    console.log('TWSDK already loaded, checking if initialized...');
     // SDK already loaded, ensure it's initialized
-    window.TWSDK.Core.init().then(() => {
+    if (window.TWSDK._initialized) {
+        console.log('TWSDK already initialized');
         initializeSnipeTiming();
-    });
+    } else {
+        console.log('TWSDK loaded but not initialized, initializing now...');
+        window.TWSDK.Core.init().then(() => {
+            console.log('TWSDK initialized successfully');
+            initializeSnipeTiming();
+        });
+    }
 }
 
 function initializeSnipeTiming() {
