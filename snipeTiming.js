@@ -127,6 +127,8 @@ window.TWSDK.Core = (function() {
         const baseUrl = window.location.origin;
         const market = game_data.market || 'en';
         const settingsUrl = `${baseUrl}/${market}/page/settings`;
+
+        console.log(`Settings url: ${settingsUrl}`);
         
         return $.get(settingsUrl).then(html => {
             const $html = $(html);
