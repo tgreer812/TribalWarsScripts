@@ -151,6 +151,8 @@ window.TWSDK.Core = (function() {
                     }
                 }
             });
+
+            console.log(settings);
             
             // Cache the settings
             window.TWSDK._worldSettings = settings;
