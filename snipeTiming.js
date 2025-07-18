@@ -621,7 +621,7 @@ function initializeSnipeTiming() {
             en_US: {
                 title: 'Snipe Timing Calculator',
                 targetCoords: 'Target coordinates:',
-                arrivalTime: 'Incoming arrival time:',
+                arrivalTime: 'Desired arrival time:',
                 snipeOffset: 'Snipe offset (ms):',
                 ownVillages: 'Your villages:',
                 calculateBtn: 'Calculate Timings',
