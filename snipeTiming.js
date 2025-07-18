@@ -120,6 +120,7 @@ window.TWSDK.Core = (function() {
     // Fetch world settings from settings page
     const fetchWorldSettings = function() {
         if (window.TWSDK._worldSettings) {
+            console.log("World settings in cache!");
             return Promise.resolve(window.TWSDK._worldSettings);
         }
         
