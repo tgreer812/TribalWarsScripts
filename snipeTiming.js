@@ -225,6 +225,14 @@ window.TWSDK.Core = (function() {
         return settings['game.watchtower'] || false;
     };
     
+    // Get sigil bonus setting (returns percentage, e.g., 20 for 20%)
+    const getSigilBonus = function() {
+        const settings = getWorldSettings();
+        // This would need to be added to the config XML parsing if sigils are in world config
+        // For now, we'll return 0 as default since sigils are typically player-specific items
+        return 0;
+    };
+    
     // Get current server time
     const getCurrentServerTime = function() {
         const [hour, min, sec, day, month, year] = $('#serverTime')
@@ -343,6 +351,7 @@ window.TWSDK.Core = (function() {
         getNightBonus,
         getChurch,
         getWatchtower,
+        getSigilBonus,
         getCurrentServerTime,
         timestampFromString,
         formatDateTime,
@@ -380,12 +389,15 @@ window.TWSDK.Coords = (function() {
     };
     
     // Calculate travel time between coordinates
-    const travelTime = function(origin, target, unitSpeed, worldSpeed = 1, unitModifier = 1) {
+    const travelTime = function(origin, target, unitSpeed, worldSpeed = 1, unitModifier = 1, sigilBonus = 0) {
         const dist = distance(origin, target);
         if (!dist) return null;
         
-        // Travel time in minutes = distance * unit speed / (world speed * unit speed modifier)
-        const timeInMinutes = (dist * unitSpeed) / (worldSpeed * unitModifier);
+        // Calculate sigil ratio (sigil reduces travel time)
+        const sigilRatio = 1 + (sigilBonus / 100);
+        
+        // Travel time in minutes = (distance * unit speed) / (world speed * unit speed modifier * sigil ratio)
+        const timeInMinutes = (dist * unitSpeed) / (worldSpeed * unitModifier * sigilRatio);
         
         // Return in seconds
         return Math.round(timeInMinutes * 60);
@@ -579,12 +591,12 @@ function initializeSnipeTiming() {
     // Library module - script-specific utilities
     window.SnipeTiming.Library = (function() {
         // Calculate travel time using TWSDK
-        const calculateTravelTime = function(origin, target, unitName) {
+        const calculateTravelTime = function(origin, target, unitName, sigilBonus = 0) {
             const unitSpeed = window.TWSDK.Units.getSpeed(unitName);
             const worldSpeed = window.TWSDK.Core.getWorldSpeed();
             const unitModifier = window.TWSDK.Core.getUnitSpeed();
             
-            return window.TWSDK.Coords.travelTime(origin, target, unitSpeed, worldSpeed, unitModifier);
+            return window.TWSDK.Coords.travelTime(origin, target, unitSpeed, worldSpeed, unitModifier, sigilBonus);
         };
         
         // Parse incoming attack time from various formats
@@ -876,6 +888,10 @@ function initializeSnipeTiming() {
                             <label>${t.snipeOffset}</label>
                             <input type="range" class="snipe-slider" id="snipe-offset" min="0" max="1000" value="50" step="10">
                             <span class="snipe-slider-value">50ms</span>
+                        </div>
+                        <div class="snipe-input-group">
+                            <label>Sigil bonus (%):</label>
+                            <input type="number" id="sigil-bonus" value="0" min="0" max="100" step="1" style="width: 80px;">
                         </div>
                     </div>
                     
@@ -1170,6 +1186,9 @@ function initializeSnipeTiming() {
                 return;
             }
             
+            // Get sigil bonus
+            const sigilBonus = parseFloat($('#sigil-bonus').val()) || 0;
+            
             // Calculate timings
             calculatedTimings = [];
             
@@ -1180,8 +1199,8 @@ function initializeSnipeTiming() {
                         return;
                     }
                     
-                    // Calculate travel time
-                    const travelTime = lib.calculateTravelTime(village.coords, targetData.coords, unitType);
+                    // Calculate travel time with sigil bonus
+                    const travelTime = lib.calculateTravelTime(village.coords, targetData.coords, unitType, sigilBonus);
                     
                     // Calculate send time (arrival time - travel time - offset)
                     const sendTime = targetData.arrivalTime - (travelTime * 1000) - targetData.snipeOffset;
@@ -1389,6 +1408,14 @@ window.TWSDK.Core = (function() {
         return settings['game.watchtower'] || false;
     };
     
+    // Get sigil bonus setting (returns percentage, e.g., 20 for 20%)
+    const getSigilBonus = function() {
+        const settings = getWorldSettings();
+        // This would need to be added to the config XML parsing if sigils are in world config
+        // For now, we'll return 0 as default since sigils are typically player-specific items
+        return 0;
+    };
+    
     // Get current server time
     const getCurrentServerTime = function() {
         const [hour, min, sec, day, month, year] = $('#serverTime')
@@ -1507,6 +1534,7 @@ window.TWSDK.Core = (function() {
         getNightBonus,
         getChurch,
         getWatchtower,
+        getSigilBonus,
         getCurrentServerTime,
         timestampFromString,
         formatDateTime,
@@ -1544,12 +1572,15 @@ window.TWSDK.Coords = (function() {
     };
     
     // Calculate travel time between coordinates
-    const travelTime = function(origin, target, unitSpeed, worldSpeed = 1, unitModifier = 1) {
+    const travelTime = function(origin, target, unitSpeed, worldSpeed = 1, unitModifier = 1, sigilBonus = 0) {
         const dist = distance(origin, target);
         if (!dist) return null;
         
-        // Travel time in minutes = distance * unit speed / (world speed * unit speed modifier)
-        const timeInMinutes = (dist * unitSpeed) / (worldSpeed * unitModifier);
+        // Calculate sigil ratio (sigil reduces travel time)
+        const sigilRatio = 1 + (sigilBonus / 100);
+        
+        // Travel time in minutes = (distance * unit speed) / (world speed * unit speed modifier * sigil ratio)
+        const timeInMinutes = (dist * unitSpeed) / (worldSpeed * unitModifier * sigilRatio);
         
         // Return in seconds
         return Math.round(timeInMinutes * 60);
