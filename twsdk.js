@@ -5,6 +5,8 @@ window.TWSDK = window.TWSDK || {};
 
 // World settings cache
 window.TWSDK._worldSettings = null;
+window.TWSDK._initialized = false;
+window.TWSDK._initPromise = null;
 
 // Core utilities
 window.TWSDK.Core = (function() {
@@ -195,7 +197,25 @@ window.TWSDK.Core = (function() {
         }
     };
     
+    // Initialize the SDK
+    const init = function() {
+        if (window.TWSDK._initPromise) {
+            return window.TWSDK._initPromise;
+        }
+        
+        window.TWSDK._initPromise = Promise.all([
+            fetchWorldSettings(),
+            window.TWSDK.Units.fetchUnitSpeeds()
+        ]).then(() => {
+            window.TWSDK._initialized = true;
+            console.log('TWSDK: Initialization complete');
+        });
+        
+        return window.TWSDK._initPromise;
+    };
+    
     return {
+        init,
         fetchWorldSettings,
         getWorldSettings,
         getWorldSpeed,
@@ -406,16 +426,3 @@ String.prototype.toNumber = function() {
 Number.prototype.toNumber = function() {
     return parseFloat(this);
 };
-
-// Initialize SDK
-(function() {
-    // Auto-fetch world settings on load
-    window.TWSDK.Core.fetchWorldSettings().then(settings => {
-        console.log('TWSDK: World settings loaded', settings);
-    });
-    
-    // Auto-fetch unit speeds if not available
-    if (!localStorage.getItem('TWSDK_unitSpeeds')) {
-        window.TWSDK.Units.fetchUnitSpeeds();
-    }
-})();

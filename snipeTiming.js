@@ -17,6 +17,11 @@ if (typeof window.TWSDK === 'undefined') {
         .then(script => {
             eval(script);
             console.log('TWSDK loaded successfully');
+            // Initialize SDK before using it
+            return window.TWSDK.Core.init();
+        })
+        .then(() => {
+            console.log('TWSDK initialized successfully');
             initializeSnipeTiming();
         })
         .catch(error => {
@@ -24,7 +29,10 @@ if (typeof window.TWSDK === 'undefined') {
             console.log('TWSDK load error:', error);
         });
 } else {
-    initializeSnipeTiming();
+    // SDK already loaded, ensure it's initialized
+    window.TWSDK.Core.init().then(() => {
+        initializeSnipeTiming();
+    });
 }
 
 function initializeSnipeTiming() {
@@ -151,12 +159,10 @@ function initializeSnipeTiming() {
                 return;
             }
             
-            // Fetch world settings first, then speed
-            window.TWSDK.Core.fetchWorldSettings().then(() => {
-                fetchWorldSpeed();
-                // Show main dialog
-                buildMainDialog();
-            });
+            // World settings should already be loaded from SDK init
+            fetchWorldSpeed();
+            // Show main dialog
+            buildMainDialog();
         };
         
         // Fetch world speed from SDK
