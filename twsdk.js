@@ -209,6 +209,10 @@ window.TWSDK.Core = (function() {
         ]).then(() => {
             window.TWSDK._initialized = true;
             console.log('TWSDK: Initialization complete');
+        }).catch(error => {
+            console.error('TWSDK: Initialization error', error);
+            // Still mark as initialized even if there's an error
+            window.TWSDK._initialized = true;
         });
         
         return window.TWSDK._initPromise;
@@ -323,6 +327,10 @@ window.TWSDK.Units = (function() {
                 
                 localStorage.setItem('TWSDK_unitSpeeds', JSON.stringify(speeds));
                 return speeds;
+            })
+            .catch(error => {
+                console.error('TWSDK: Failed to fetch unit speeds', error);
+                return unitSpeeds; // Return defaults on error
             });
     };
     
@@ -426,3 +434,7 @@ String.prototype.toNumber = function() {
 Number.prototype.toNumber = function() {
     return parseFloat(this);
 };
+
+// Mark SDK as ready
+window.TWSDK._ready = true;
+console.log('TWSDK: Script loaded and ready');

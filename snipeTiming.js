@@ -17,8 +17,18 @@ if (typeof window.TWSDK === 'undefined') {
         .then(script => {
             eval(script);
             console.log('TWSDK loaded successfully');
-            // Initialize SDK before using it
-            return window.TWSDK.Core.init();
+            
+            // Small delay to ensure all functions are available
+            return new Promise(resolve => setTimeout(resolve, 100));
+        })
+        .then(() => {
+            // Check if SDK is properly loaded
+            if (window.TWSDK && window.TWSDK.Core && typeof window.TWSDK.Core.init === 'function') {
+                // Initialize SDK before using it
+                return window.TWSDK.Core.init();
+            } else {
+                throw new Error('TWSDK not properly loaded');
+            }
         })
         .then(() => {
             console.log('TWSDK initialized successfully');
