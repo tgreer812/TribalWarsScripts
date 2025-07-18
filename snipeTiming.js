@@ -8,14 +8,16 @@ console.log("script ran");
 
 // Load TWSDK if not already loaded
 if (typeof window.TWSDK === 'undefined') {
-    $.getScript('https://raw.githubusercontent.com/tgreer812/TribalWarsScripts/refs/heads/main/twsdk.js')
-        .done(function() {
+    fetch('https://raw.githubusercontent.com/tgreer812/TribalWarsScripts/refs/heads/main/twsdk.js')
+        .then(response => response.text())
+        .then(script => {
+            eval(script);
             console.log('TWSDK loaded successfully');
             initializeSnipeTiming();
         })
-        .fail(function(jqxhr, settings, exception) {
+        .catch(error => {
             UI.ErrorMessage('Failed to load TWSDK. Please try again.');
-            console.log('TWSDK load error:', exception, 'Status:', jqxhr.status, 'Response:', jqxhr.responseText);
+            console.log('TWSDK load error:', error);
         });
 } else {
     initializeSnipeTiming();
