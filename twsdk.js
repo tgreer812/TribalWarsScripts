@@ -435,6 +435,10 @@ Number.prototype.toNumber = function() {
     return parseFloat(this);
 };
 
-// Mark SDK as ready
-window.TWSDK._ready = true;
-console.log('TWSDK: Script loaded and ready');
+// Mark SDK as ready - ensure window.TWSDK exists
+if (typeof window.TWSDK !== 'undefined') {
+    window.TWSDK._ready = true;
+    console.log('TWSDK: Script loaded and ready');
+} else {
+    console.error('TWSDK: window.TWSDK is undefined at end of script!');
+}

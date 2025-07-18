@@ -15,7 +15,32 @@ if (typeof window.TWSDK === 'undefined' || !window.TWSDK._ready) {
     fetch(sdkPath)
         .then(response => response.text())
         .then(script => {
-            // Create a temporary function to check if SDK is ready
+            console.log('SDK script fetched, executing...');
+            
+            // Execute the SDK script
+            try {
+                eval(script);
+                console.log('SDK script executed');
+            } catch (e) {
+                console.error('Error executing SDK:', e);
+                throw e;
+            }
+            
+            // Check if TWSDK was created
+            if (typeof window.TWSDK === 'undefined') {
+                throw new Error('TWSDK object was not created after eval');
+            }
+            
+            console.log('TWSDK object exists:', window.TWSDK);
+            console.log('TWSDK._ready:', window.TWSDK._ready);
+            console.log('TWSDK.Core:', window.TWSDK.Core);
+            
+            // If SDK is marked as ready immediately, we can proceed
+            if (window.TWSDK._ready && window.TWSDK.Core && typeof window.TWSDK.Core.init === 'function') {
+                return Promise.resolve();
+            }
+            
+            // Otherwise wait for it to be ready
             const checkSDKReady = function() {
                 return new Promise((resolve, reject) => {
                     let attempts = 0;
@@ -26,20 +51,21 @@ if (typeof window.TWSDK === 'undefined' || !window.TWSDK._ready) {
                         
                         if (window.TWSDK && window.TWSDK._ready && window.TWSDK.Core && typeof window.TWSDK.Core.init === 'function') {
                             clearInterval(checkInterval);
+                            console.log('SDK is ready after', attempts, 'attempts');
                             resolve();
                         } else if (attempts >= maxAttempts) {
                             clearInterval(checkInterval);
+                            console.error('SDK state after timeout:', {
+                                TWSDK: window.TWSDK,
+                                ready: window.TWSDK ? window.TWSDK._ready : 'no TWSDK',
+                                Core: window.TWSDK ? window.TWSDK.Core : 'no TWSDK'
+                            });
                             reject(new Error('TWSDK failed to load properly after 5 seconds'));
                         }
                     }, 100); // Check every 100ms
                 });
             };
             
-            // Execute the SDK script
-            eval(script);
-            console.log('TWSDK loaded successfully');
-            
-            // Wait for SDK to be ready
             return checkSDKReady();
         })
         .then(() => {
@@ -53,10 +79,16 @@ if (typeof window.TWSDK === 'undefined' || !window.TWSDK._ready) {
         })
         .catch(error => {
             UI.ErrorMessage('Failed to load TWSDK. Please try again.');
-            console.log('TWSDK load error:', error);
+            console.error('TWSDK load error:', error);
         });
 } else {
     console.log('TWSDK already loaded, checking if initialized...');
+    console.log('TWSDK state:', {
+        ready: window.TWSDK._ready,
+        initialized: window.TWSDK._initialized,
+        Core: window.TWSDK.Core ? 'exists' : 'missing'
+    });
+    
     // SDK already loaded, ensure it's initialized
     if (window.TWSDK._initialized) {
         console.log('TWSDK already initialized');
