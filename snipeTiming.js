@@ -10,22 +10,579 @@ console.log("script ran");
 //     ScriptAPI.register('SnipeTiming', true, 'YourName', 'your.email@example.com');
 // }
 
+// COMMENTED OUT - SDK is now embedded below
 // Load TWSDK if not already loaded
-if (typeof window.TWSDK === 'undefined') {
-    fetch(sdkPath)
-        .then(response => response.text())
-        .then(script => {
-            eval(script);
-            console.log('TWSDK loaded successfully');
-            initializeSnipeTiming();
-        })
-        .catch(error => {
-            UI.ErrorMessage('Failed to load TWSDK. Please try again.');
-            console.log('TWSDK load error:', error);
+// if (typeof window.TWSDK === 'undefined' || !window.TWSDK._ready) {
+//     fetch(sdkPath)
+//         .then(response => response.text())
+//         .then(script => {
+//             console.log('SDK script fetched, executing...');
+//             
+//             // Execute the SDK script
+//             try {
+//                 eval(script);
+//                 console.log('SDK script executed');
+//             } catch (e) {
+//                 console.error('Error executing SDK:', e);
+//                 throw e;
+//             }
+//             
+//             // Check if TWSDK was created
+//             if (typeof window.TWSDK === 'undefined') {
+//                 throw new Error('TWSDK object was not created after eval');
+//             }
+//             
+//             console.log('TWSDK object exists:', window.TWSDK);
+//             console.log('TWSDK._ready:', window.TWSDK._ready);
+//             console.log('TWSDK.Core:', window.TWSDK.Core);
+//             
+//             // If SDK is marked as ready immediately, we can proceed
+//             if (window.TWSDK._ready && window.TWSDK.Core && typeof window.TWSDK.Core.init === 'function') {
+//                 return Promise.resolve();
+//             }
+//             
+//             // Otherwise wait for it to be ready
+//             const checkSDKReady = function() {
+//                 return new Promise((resolve, reject) => {
+//                     let attempts = 0;
+//                     const maxAttempts = 50; // 5 seconds max wait
+//                     
+//                     const checkInterval = setInterval(() => {
+//                         attempts++;
+//                         
+//                         if (window.TWSDK && window.TWSDK._ready && window.TWSDK.Core && typeof window.TWSDK.Core.init === 'function') {
+//                             clearInterval(checkInterval);
+//                             console.log('SDK is ready after', attempts, 'attempts');
+//                             resolve();
+//                         } else if (attempts >= maxAttempts) {
+//                             clearInterval(checkInterval);
+//                             console.error('SDK state after timeout:', {
+//                                 TWSDK: window.TWSDK,
+//                                 ready: window.TWSDK ? window.TWSDK._ready : 'no TWSDK',
+//                                 Core: window.TWSDK ? window.TWSDK.Core : 'no TWSDK'
+//                             });
+//                             reject(new Error('TWSDK failed to load properly after 5 seconds'));
+//                         }
+//                     }, 100); // Check every 100ms
+//                 });
+//             };
+//             
+//             return checkSDKReady();
+//         })
+//         .then(() => {
+//             console.log('TWSDK is ready, initializing...');
+//             // Initialize SDK before using it
+//             return window.TWSDK.Core.init();
+//         })
+//         .then(() => {
+//             console.log('TWSDK initialized successfully');
+//             initializeSnipeTiming();
+//         })
+//         .catch(error => {
+//             UI.ErrorMessage('Failed to load TWSDK. Please try again.');
+//             console.error('TWSDK load error:', error);
+//         });
+// } else {
+//     console.log('TWSDK already loaded, checking if initialized...');
+//     console.log('TWSDK state:', {
+//         ready: window.TWSDK._ready,
+//         initialized: window.TWSDK._initialized,
+//         Core: window.TWSDK.Core ? 'exists' : 'missing'
+//     });
+//     
+//     // SDK already loaded, ensure it's initialized
+//     if (window.TWSDK._initialized) {
+//         console.log('TWSDK already initialized');
+//         initializeSnipeTiming();
+//     } else {
+//         console.log('TWSDK loaded but not initialized, initializing now...');
+//         window.TWSDK.Core.init().then(() => {
+//             console.log('TWSDK initialized successfully');
+//             initializeSnipeTiming();
+//         });
+//     }
+// }
+
+// ========================= SDK CODE ==============================================================================
+
+// TRIBAL WARS SDK - Reusable utility functions
+// Version: 1.0.0
+
+window.TWSDK = window.TWSDK || {};
+
+// World settings cache
+window.TWSDK._worldSettings = null;
+window.TWSDK._initialized = false;
+window.TWSDK._initPromise = null;
+
+// Core utilities
+window.TWSDK.Core = (function() {
+    // Fetch world settings from config XML
+    const fetchWorldSettings = function() {
+        if (window.TWSDK._worldSettings) {
+            return Promise.resolve(window.TWSDK._worldSettings);
+        }
+        
+        // Build config URL based on current game URL
+        const configUrl = '/interface.php?func=get_config';
+        
+        return $.get(configUrl).then(xml => {
+            const $xml = $(xml);
+            const settings = {};
+            
+            // Parse XML into flat JSON structure
+            const parseElement = function($element, parentKey = '') {
+                $element.children().each(function() {
+                    const $child = $(this);
+                    const key = parentKey ? `${parentKey}.${$child.prop('nodeName')}` : $child.prop('nodeName');
+                    
+                    if ($child.children().length > 0) {
+                        // Has children, recurse
+                        parseElement($child, key);
+                    } else {
+                        // Leaf node, get the value
+                        const value = $child.text().trim();
+                        
+                        // Convert to appropriate type
+                        if (value.match(/^\d+(\.\d+)?$/)) {
+                            settings[key] = parseFloat(value);
+                        } else if (value === '1') {
+                            settings[key] = true;
+                        } else if (value === '0') {
+                            settings[key] = false;
+                        } else {
+                            settings[key] = value;
+                        }
+                    }
+                });
+            };
+            
+            parseElement($xml.find('config'));
+            
+            // Cache the settings
+            window.TWSDK._worldSettings = settings;
+            localStorage.setItem('TWSDK_worldSettings', JSON.stringify(settings));
+            localStorage.setItem('TWSDK_worldSettings_timestamp', Date.now());
+            
+            console.log('World settings parsed:', settings);
+            return settings;
+        }).catch(() => {
+            // Fallback to localStorage if available and fresh (less than 1 hour old)
+            const cached = localStorage.getItem('TWSDK_worldSettings');
+            const timestamp = localStorage.getItem('TWSDK_worldSettings_timestamp');
+            
+            if (cached && timestamp && (Date.now() - parseInt(timestamp) < 3600000)) {
+                window.TWSDK._worldSettings = JSON.parse(cached);
+                return window.TWSDK._worldSettings;
+            }
+            
+            // Ultimate fallback to game_data
+            return {
+                'speed': game_data.speed || 1,
+                'unit_speed': game_data.unit_speed || 1
+            };
         });
+    };
+    
+    // Get all world settings
+    const getWorldSettings = function() {
+        return window.TWSDK._worldSettings || JSON.parse(localStorage.getItem('TWSDK_worldSettings')) || {};
+    };
+    
+    // Get world speed from settings
+    const getWorldSpeed = function() {
+        const settings = getWorldSettings();
+        return settings['speed'] || game_data.speed || 1;
+    };
+    
+    // Get unit speed from settings
+    const getUnitSpeed = function() {
+        const settings = getWorldSettings();
+        return settings['unit_speed'] || game_data.unit_speed || 1;
+    };
+    
+    // Get morale setting (0=disabled, 1=points based, 2=time based)
+    const getMorale = function() {
+        const settings = getWorldSettings();
+        return settings['moral'] || 0;
+    };
+    
+    // Get night bonus setting (0=disabled, 1=classic, 2=only def bonus)
+    const getNightBonus = function() {
+        const settings = getWorldSettings();
+        return settings['night.active'] || 0;
+    };
+    
+    // Get church setting
+    const getChurch = function() {
+        const settings = getWorldSettings();
+        return settings['game.church'] || false;
+    };
+    
+    // Get watchtower setting
+    const getWatchtower = function() {
+        const settings = getWorldSettings();
+        return settings['game.watchtower'] || false;
+    };
+    
+    // Get sigil bonus setting (returns percentage, e.g., 20 for 20%)
+    const getSigilBonus = function() {
+        const settings = getWorldSettings();
+        // This would need to be added to the config XML parsing if sigils are in world config
+        // For now, we'll return 0 as default since sigils are typically player-specific items
+        return 0;
+    };
+    
+    // Get current server time
+    const getCurrentServerTime = function() {
+        const [hour, min, sec, day, month, year] = $('#serverTime')
+            .closest('p')
+            .text()
+            .match(/\d+/g);
+        return new Date(year, month - 1, day, hour, min, sec).getTime();
+    };
+    
+    // Parse time string to timestamp
+    const timestampFromString = function(timestr) {
+        const d = $('#serverDate')
+            .text()
+            .split('/')
+            .map((x) => +x);
+        const todayPattern = new RegExp(
+            window.lang['aea2b0aa9ae1534226518faaefffdaad'].replace(
+                '%s',
+                '([\\d+|:]+)'
+            )
+        ).exec(timestr);
+        const tomorrowPattern = new RegExp(
+            window.lang['57d28d1b211fddbb7a499ead5bf23079'].replace(
+                '%s',
+                '([\\d+|:]+)'
+            )
+        ).exec(timestr);
+        const laterDatePattern = new RegExp(
+            window.lang['0cb274c906d622fa8ce524bcfbb7552d']
+                .replace('%1', '([\\d+|\\.]+)')
+                .replace('%2', '([\\d+|:]+)')
+        ).exec(timestr);
+        let t, date;
+
+        if (todayPattern !== null) {
+            t = todayPattern[1].split(':');
+            date = new Date(d[2], d[1] - 1, d[0], t[0], t[1], t[2], t[3] || 0);
+        } else if (tomorrowPattern !== null) {
+            t = tomorrowPattern[1].split(':');
+            date = new Date(
+                d[2],
+                d[1] - 1,
+                d[0] + 1,
+                t[0],
+                t[1],
+                t[2],
+                t[3] || 0
+            );
+        } else {
+            d = (laterDatePattern[1] + d[2]).split('.').map((x) => +x);
+            t = laterDatePattern[2].split(':');
+            date = new Date(d[2], d[1] - 1, d[0], t[0], t[1], t[2], t[3] || 0);
+        }
+
+        return date.getTime();
+    };
+    
+    // Format timestamp for display
+    const formatDateTime = function(timestamp, includeMs = false) {
+        const date = new Date(timestamp);
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        const seconds = String(date.getSeconds()).padStart(2, '0');
+        
+        if (includeMs) {
+            const ms = String(date.getMilliseconds()).padStart(3, '0');
+            return `${hours}:${minutes}:${seconds}:${ms}`;
+        }
+        
+        return `${hours}:${minutes}:${seconds}`;
+    };
+    
+    // Format duration in seconds to human readable
+    const formatDuration = function(seconds) {
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        const secs = seconds % 60;
+        
+        if (hours > 0) {
+            return `${hours}h ${minutes}m`;
+        } else if (minutes > 0) {
+            return `${minutes}m ${secs}s`;
+        } else {
+            return `${secs}s`;
+        }
+    };
+    
+    // Initialize the SDK
+    const init = function() {
+        if (window.TWSDK._initPromise) {
+            return window.TWSDK._initPromise;
+        }
+        
+        window.TWSDK._initPromise = Promise.all([
+            fetchWorldSettings(),
+            window.TWSDK.Units.fetchUnitSpeeds()
+        ]).then(() => {
+            window.TWSDK._initialized = true;
+            console.log('TWSDK: Initialization complete');
+        }).catch(error => {
+            console.error('TWSDK: Initialization error', error);
+            // Still mark as initialized even if there's an error
+            window.TWSDK._initialized = true;
+        });
+        
+        return window.TWSDK._initPromise;
+    };
+    
+    return {
+        init,
+        fetchWorldSettings,
+        getWorldSettings,
+        getWorldSpeed,
+        getUnitSpeed,
+        getMorale,
+        getNightBonus,
+        getChurch,
+        getWatchtower,
+        getSigilBonus,
+        getCurrentServerTime,
+        timestampFromString,
+        formatDateTime,
+        formatDuration
+    };
+})();
+
+// Coordinate utilities
+window.TWSDK.Coords = (function() {
+    // Parse coordinates from string
+    const parse = function(coordStr) {
+        const match = coordStr.match(/(\d{1,3})\|(\d{1,3})/);
+        if (!match) return null;
+        
+        return {
+            x: parseInt(match[1]),
+            y: parseInt(match[2]),
+            toString: function() {
+                return `${this.x}|${this.y}`;
+            }
+        };
+    };
+    
+    // Calculate distance between two coordinates
+    const distance = function(coord1, coord2) {
+        const c1 = typeof coord1 === 'string' ? parse(coord1) : coord1;
+        const c2 = typeof coord2 === 'string' ? parse(coord2) : coord2;
+        
+        if (!c1 || !c2) return null;
+        
+        const dx = c1.x - c2.x;
+        const dy = c1.y - c2.y;
+        
+        return Math.sqrt(dx * dx + dy * dy);
+    };
+    
+    // Calculate travel time between coordinates
+    const travelTime = function(origin, target, unitSpeed, worldSpeed = 1, unitModifier = 1, sigilBonus = 0) {
+        const dist = distance(origin, target);
+        if (!dist) return null;
+        
+        // Calculate sigil ratio (sigil reduces travel time)
+        const sigilRatio = 1 + (sigilBonus / 100);
+        
+        // Travel time in minutes = (distance * unit speed) / (world speed * unit speed modifier * sigil ratio)
+        const timeInMinutes = (dist * unitSpeed) / (worldSpeed * unitModifier * sigilRatio);
+        
+        // Return in seconds
+        return Math.round(timeInMinutes * 60);
+    };
+    
+    return {
+        parse,
+        distance,
+        travelTime
+    };
+})();
+
+// Unit data utilities
+window.TWSDK.Units = (function() {
+    const unitSpeeds = {
+        spear: 18,
+        sword: 22,
+        axe: 18,
+        archer: 18,
+        spy: 9,
+        light: 10,
+        marcher: 10,
+        heavy: 11,
+        ram: 30,
+        catapult: 30,
+        knight: 10,
+        snob: 35
+    };
+    
+    // Get unit speeds from localStorage or use defaults
+    const getUnitSpeeds = function() {
+        const stored = localStorage.getItem('TWSDK_unitSpeeds');
+        if (stored) {
+            return JSON.parse(stored);
+        }
+        return unitSpeeds;
+    };
+    
+    // Fetch and store unit speeds from game
+    const fetchUnitSpeeds = function() {
+        return $.get('/interface.php?func=get_unit_info')
+            .then((xml) => {
+                const speeds = {};
+                $(xml)
+                    .find('config')
+                    .children()
+                    .each((i, el) => {
+                        const unitName = $(el).prop('nodeName');
+                        const speed = $(el).find('speed').text();
+                        if (speed) {
+                            speeds[unitName] = parseFloat(speed);
+                        }
+                    });
+                
+                localStorage.setItem('TWSDK_unitSpeeds', JSON.stringify(speeds));
+                return speeds;
+            })
+            .catch(error => {
+                console.error('TWSDK: Failed to fetch unit speeds', error);
+                return unitSpeeds; // Return defaults on error
+            });
+    };
+    
+    // Get speed for specific unit
+    const getSpeed = function(unitName) {
+        const speeds = getUnitSpeeds();
+        return speeds[unitName] || null;
+    };
+    
+    return {
+        getUnitSpeeds,
+        fetchUnitSpeeds,
+        getSpeed
+    };
+})();
+
+// Page processing utilities
+window.TWSDK.Page = (function() {
+    // Process all pages of a paginated view
+    const processAllPages = function(url, processorFn) {
+        const processPage = function(pageUrl, page, wrapFn) {
+            const pageText = pageUrl.match('am_farm') ? `&Farm_page=${page}` : `&page=${page}`;
+            
+            return $.ajax({
+                url: pageUrl + pageText,
+            }).then((html) => {
+                return wrapFn(page, $(html));
+            });
+        };
+        
+        const determineNextPage = function(page, $html) {
+            const villageLength = $html.find('#scavenge_mass_screen').length > 0
+                ? $html.find('tr[id*="scavenge_village"]').length
+                : $html.find('tr.row_a, tr.row_ax, tr.row_b, tr.row_bx').length;
+                
+            const navSelect = $html
+                .find('.paged-nav-item')
+                .first()
+                .closest('td')
+                .find('select')
+                .first();
+                
+            const navLength = $html.find('#am_widget_Farm').length > 0
+                ? parseInt(
+                    $('#plunder_list_nav')
+                        .first()
+                        .find('a.paged-nav-item, strong.paged-nav-item')
+                        .last()
+                        .text()
+                        .replace(/\D/g, '')
+                ) - 1
+                : navSelect.length > 0
+                    ? navSelect.find('option').length - 1
+                    : $html.find('.paged-nav-item').not('[href*="page=-1"]').length;
+                    
+            const pageSize = $('#mobileHeader').length > 0
+                ? 10
+                : parseInt($html.find('input[name="page_size"]').val());
+                
+            if (page == -1 && villageLength == 1000) {
+                return Math.floor(1000 / pageSize);
+            } else if (page < navLength) {
+                return page + 1;
+            }
+            
+            return false;
+        };
+        
+        let page = url.match('am_farm') || url.match('scavenge_mass') ? 0 : -1;
+        const wrapFn = function(page, $html) {
+            const dnp = determineNextPage(page, $html);
+            
+            if (dnp) {
+                processorFn($html);
+                return processPage(url, dnp, wrapFn);
+            } else {
+                return processorFn($html);
+            }
+        };
+        
+        return processPage(url, page, wrapFn);
+    };
+    
+    return {
+        processAllPages
+    };
+})();
+
+// String prototype extensions
+String.prototype.toCoord = function(objectified) {
+    const c = (this.match(/\d{1,3}\|\d{1,3}/g) || [false]).pop();
+    return c && objectified
+        ? { x: c.split('|')[0], y: c.split('|')[1] }
+        : c;
+};
+
+String.prototype.toNumber = function() {
+    return parseFloat(this);
+};
+
+Number.prototype.toNumber = function() {
+    return parseFloat(this);
+};
+
+// Mark SDK as ready - ensure window.TWSDK exists
+if (typeof window.TWSDK !== 'undefined') {
+    window.TWSDK._ready = true;
+    console.log('TWSDK: Script loaded and ready');
 } else {
-    initializeSnipeTiming();
+    console.error('TWSDK: window.TWSDK is undefined at end of script!');
 }
+
+// =============== END SDK ================================================
+
+
+// Initialize SDK and then the main script - MOVED HERE AFTER SDK DEFINITION
+console.log('TWSDK is ready, initializing...');
+window.TWSDK.Core.init().then(() => {
+    console.log('TWSDK initialized successfully');
+    initializeSnipeTiming();
+}).catch(error => {
+    console.error('TWSDK initialization failed:', error);
+    // Still try to initialize the script with fallback data
+    initializeSnipeTiming();
+});
 
 function initializeSnipeTiming() {
     // Main module structure
@@ -34,12 +591,12 @@ function initializeSnipeTiming() {
     // Library module - script-specific utilities
     window.SnipeTiming.Library = (function() {
         // Calculate travel time using TWSDK
-        const calculateTravelTime = function(origin, target, unitName) {
+        const calculateTravelTime = function(origin, target, unitName, sigilBonus = 0) {
             const unitSpeed = window.TWSDK.Units.getSpeed(unitName);
             const worldSpeed = window.TWSDK.Core.getWorldSpeed();
             const unitModifier = window.TWSDK.Core.getUnitSpeed();
             
-            return window.TWSDK.Coords.travelTime(origin, target, unitSpeed, worldSpeed, unitModifier);
+            return window.TWSDK.Coords.travelTime(origin, target, unitSpeed, worldSpeed, unitModifier, sigilBonus);
         };
         
         // Parse incoming attack time from various formats
@@ -76,7 +633,7 @@ function initializeSnipeTiming() {
             en_US: {
                 title: 'Snipe Timing Calculator',
                 targetCoords: 'Target coordinates:',
-                arrivalTime: 'Incoming arrival time:',
+                arrivalTime: 'Desired arrival time:',
                 snipeOffset: 'Snipe offset (ms):',
                 ownVillages: 'Your villages:',
                 calculateBtn: 'Calculate Timings',
@@ -108,6 +665,11 @@ function initializeSnipeTiming() {
                 worldSpeed: 'World Speed',
                 unitSpeed: 'Unit Speed',
                 serverTime: 'Server Time',
+                morale: 'Morale',
+                nightBonus: 'Night Bonus',
+                church: 'Church',
+                watchtower: 'Watchtower',
+                worldSettings: 'World Settings',
             }
         };
         
@@ -136,27 +698,49 @@ function initializeSnipeTiming() {
         let worldSpeed = 1;  // Store world speed
         let unitSpeedModifier = 1;  // Store unit speed modifier
         let debugMode = false;  // Debug mode flag
+        let worldSettings = {};  // Store all world settings
         
         // Initialize function - entry point
-        const init = function() {
+        const init = async function() {
             // Check for premium features if needed
             if (!game_data.features.Premium.active) {
                 UI.ErrorMessage('This script requires a premium account');
                 return;
             }
             
-            // Fetch world speed on init
-            fetchWorldSpeed();
-            
-            // Show main dialog
+            // Show main dialog with loading state
             buildMainDialog();
+            
+            // Wait for world settings to be loaded, then populate UI
+            await fetchWorldSpeed();
+            
+            // Fetch user's villages after world settings are loaded
+            fetchUserVillages();
         };
         
-        // Fetch world speed from game data
-        const fetchWorldSpeed = function() {
-            worldSpeed = window.TWSDK.Core.getWorldSpeed();
-            unitSpeedModifier = window.TWSDK.Core.getUnitSpeed();
-            updateDebugInfo();
+        // Fetch world speed from SDK - now properly async
+        const fetchWorldSpeed = async function() {
+            try {
+                // Ensure world settings are loaded
+                await window.TWSDK.Core.fetchWorldSettings();
+                
+                worldSpeed = window.TWSDK.Core.getWorldSpeed();
+                unitSpeedModifier = window.TWSDK.Core.getUnitSpeed();
+                worldSettings = window.TWSDK.Core.getWorldSettings();
+                
+                console.log('World settings loaded:', worldSettings);
+                updateDebugInfo();
+            } catch (error) {
+                console.error('Failed to fetch world settings:', error);
+                // Use fallbacks
+                worldSpeed = game_data.speed || 1;
+                unitSpeedModifier = game_data.unit_speed || 1;
+                worldSettings = {
+                    'Game speed': worldSpeed,
+                    'Unit speed': unitSpeedModifier
+                };
+                updateDebugInfo();
+            }
         };
         
         // Update debug information display
@@ -168,9 +752,17 @@ function initializeSnipeTiming() {
                         <strong>${t.debugInfo}:</strong><br>
                         ${t.worldSpeed}: ${worldSpeed}x<br>
                         ${t.unitSpeed}: ${unitSpeedModifier}x<br>
+                        ${t.morale}: ${window.TWSDK.Core.getMorale() ? 'Enabled' : 'Disabled'}<br>
+                        ${t.nightBonus}: ${window.TWSDK.Core.getNightBonus() ? 'Enabled' : 'Disabled'}<br>
+                        ${t.church}: ${window.TWSDK.Core.getChurch() ? 'Enabled' : 'Disabled'}<br>
+                        ${t.watchtower}: ${window.TWSDK.Core.getWatchtower() ? 'Enabled' : 'Disabled'}<br>
                         ${t.serverTime}: ${new Date(serverTime).toLocaleString()}<br>
                         Target Coords: ${targetData.coords || 'Not set'}<br>
-                        Villages Loaded: ${Object.keys(villageData).length}
+                        Villages Loaded: ${Object.keys(villageData).length}<br>
+                        <details style="margin-top: 5px;">
+                            <summary style="cursor: pointer;">${t.worldSettings}</summary>
+                            <pre style="font-size: 10px; margin: 5px 0;">${JSON.stringify(worldSettings, null, 2)}</pre>
+                        </details>
                     </div>
                 `;
                 $('#debug-info').html(debugHtml);
@@ -255,6 +847,12 @@ function initializeSnipeTiming() {
                         background: #f9f9f9;
                         border: 1px dashed #999;
                     }
+                    .loading-indicator {
+                        text-align: center;
+                        padding: 20px;
+                        font-style: italic;
+                        color: #666;
+                    }
                 </style>
             `;
             
@@ -271,7 +869,9 @@ function initializeSnipeTiming() {
                     </div>
                     
                     <!-- Debug section (initially hidden) -->
-                    <div class="debug-section" id="debug-info" style="display: none;"></div>
+                    <div class="debug-section" id="debug-info" style="display: none;">
+                        <div class="loading-indicator">Loading world settings...</div>
+                    </div>
                     
                     <!-- Target Information Section -->
                     <div class="snipe-section">
@@ -288,6 +888,10 @@ function initializeSnipeTiming() {
                             <label>${t.snipeOffset}</label>
                             <input type="range" class="snipe-slider" id="snipe-offset" min="0" max="1000" value="50" step="10">
                             <span class="snipe-slider-value">50ms</span>
+                        </div>
+                        <div class="snipe-input-group">
+                            <label>Sigil bonus (%):</label>
+                            <input type="number" id="sigil-bonus" value="0" min="0" max="100" step="1" style="width: 80px;">
                         </div>
                     </div>
                     
@@ -317,7 +921,7 @@ function initializeSnipeTiming() {
                                 </tr>
                             </thead>
                             <tbody id="village-list">
-                                ${buildVillageRows()}
+                                <tr><td colspan="5" class="loading-indicator">Loading villages...</td></tr>
                             </tbody>
                         </table>
                     </div>
@@ -349,9 +953,6 @@ function initializeSnipeTiming() {
             
             Dialog.show('SnipeTiming', html);
             bindEventHandlers();
-            
-            // Fetch user's villages after dialog is shown
-            fetchUserVillages();
         };
         
         // Build unit checkboxes
@@ -404,8 +1005,8 @@ function initializeSnipeTiming() {
         
         // Fetch user's villages and troop counts
         const fetchUserVillages = function() {
-            // Show loading indicator
-            $('#village-list').html('<tr><td colspan="5" style="text-align: center;">Loading villages...</td></tr>');
+            // Show loading indicator (already shown in buildMainDialog)
+            $('#village-list').html('<tr><td colspan="5" class="loading-indicator">Loading villages...</td></tr>');
             
             // Use TWSDK's page processing to get all villages
             window.TWSDK.Page.processAllPages(
@@ -520,6 +1121,13 @@ function initializeSnipeTiming() {
                 }
             });
             
+            // Snipe offset slider
+            $('#snipe-offset').on('input', function() {
+                targetData.snipeOffset = parseInt($(this).val());
+                $(this).next('.snipe-slider-value').text($(this).val() + 'ms');
+                updateDebugInfo();
+            });
+            
             // Calculate button
             $('.calculate-button').on('click', function() {
                 calculateTimings();
@@ -578,6 +1186,9 @@ function initializeSnipeTiming() {
                 return;
             }
             
+            // Get sigil bonus
+            const sigilBonus = parseFloat($('#sigil-bonus').val()) || 0;
+            
             // Calculate timings
             calculatedTimings = [];
             
@@ -588,8 +1199,8 @@ function initializeSnipeTiming() {
                         return;
                     }
                     
-                    // Calculate travel time
-                    const travelTime = lib.calculateTravelTime(village.coords, targetData.coords, unitType);
+                    // Calculate travel time with sigil bonus
+                    const travelTime = lib.calculateTravelTime(village.coords, targetData.coords, unitType, sigilBonus);
                     
                     // Calculate send time (arrival time - travel time - offset)
                     const sendTime = targetData.arrivalTime - (travelTime * 1000) - targetData.snipeOffset;
@@ -674,3 +1285,470 @@ function initializeSnipeTiming() {
 
 // Simple URL test - paste this in console
 // fetch('https://raw.githubusercontent.com/tgreer812/TribalWarsScripts/refs/heads/main/snipeTiming.js')
+
+// ========================= SDK CODE ==============================================================================
+
+// TRIBAL WARS SDK - Reusable utility functions
+// Version: 1.0.0
+
+window.TWSDK = window.TWSDK || {};
+
+// World settings cache
+window.TWSDK._worldSettings = null;
+window.TWSDK._initialized = false;
+window.TWSDK._initPromise = null;
+
+// Core utilities
+window.TWSDK.Core = (function() {
+    // Fetch world settings from config XML
+    const fetchWorldSettings = function() {
+        if (window.TWSDK._worldSettings) {
+            return Promise.resolve(window.TWSDK._worldSettings);
+        }
+        
+        // Build config URL based on current game URL
+        const configUrl = '/interface.php?func=get_config';
+        
+        return $.get(configUrl).then(xml => {
+            const $xml = $(xml);
+            const settings = {};
+            
+            // Parse XML into flat JSON structure
+            const parseElement = function($element, parentKey = '') {
+                $element.children().each(function() {
+                    const $child = $(this);
+                    const key = parentKey ? `${parentKey}.${$child.prop('nodeName')}` : $child.prop('nodeName');
+                    
+                    if ($child.children().length > 0) {
+                        // Has children, recurse
+                        parseElement($child, key);
+                    } else {
+                        // Leaf node, get the value
+                        const value = $child.text().trim();
+                        
+                        // Convert to appropriate type
+                        if (value.match(/^\d+(\.\d+)?$/)) {
+                            settings[key] = parseFloat(value);
+                        } else if (value === '1') {
+                            settings[key] = true;
+                        } else if (value === '0') {
+                            settings[key] = false;
+                        } else {
+                            settings[key] = value;
+                        }
+                    }
+                });
+            };
+            
+            parseElement($xml.find('config'));
+            
+            // Cache the settings
+            window.TWSDK._worldSettings = settings;
+            localStorage.setItem('TWSDK_worldSettings', JSON.stringify(settings));
+            localStorage.setItem('TWSDK_worldSettings_timestamp', Date.now());
+            
+            console.log('World settings parsed:', settings);
+            return settings;
+        }).catch(() => {
+            // Fallback to localStorage if available and fresh (less than 1 hour old)
+            const cached = localStorage.getItem('TWSDK_worldSettings');
+            const timestamp = localStorage.getItem('TWSDK_worldSettings_timestamp');
+            
+            if (cached && timestamp && (Date.now() - parseInt(timestamp) < 3600000)) {
+                window.TWSDK._worldSettings = JSON.parse(cached);
+                return window.TWSDK._worldSettings;
+            }
+            
+            // Ultimate fallback to game_data
+            return {
+                'speed': game_data.speed || 1,
+                'unit_speed': game_data.unit_speed || 1
+            };
+        });
+    };
+    
+    // Get all world settings
+    const getWorldSettings = function() {
+        return window.TWSDK._worldSettings || JSON.parse(localStorage.getItem('TWSDK_worldSettings')) || {};
+    };
+    
+    // Get world speed from settings
+    const getWorldSpeed = function() {
+        const settings = getWorldSettings();
+        return settings['speed'] || game_data.speed || 1;
+    };
+    
+    // Get unit speed from settings
+    const getUnitSpeed = function() {
+        const settings = getWorldSettings();
+        return settings['unit_speed'] || game_data.unit_speed || 1;
+    };
+    
+    // Get morale setting (0=disabled, 1=points based, 2=time based)
+    const getMorale = function() {
+        const settings = getWorldSettings();
+        return settings['moral'] || 0;
+    };
+    
+    // Get night bonus setting (0=disabled, 1=classic, 2=only def bonus)
+    const getNightBonus = function() {
+        const settings = getWorldSettings();
+        return settings['night.active'] || 0;
+    };
+    
+    // Get church setting
+    const getChurch = function() {
+        const settings = getWorldSettings();
+        return settings['game.church'] || false;
+    };
+    
+    // Get watchtower setting
+    const getWatchtower = function() {
+        const settings = getWorldSettings();
+        return settings['game.watchtower'] || false;
+    };
+    
+    // Get sigil bonus setting (returns percentage, e.g., 20 for 20%)
+    const getSigilBonus = function() {
+        const settings = getWorldSettings();
+        // This would need to be added to the config XML parsing if sigils are in world config
+        // For now, we'll return 0 as default since sigils are typically player-specific items
+        return 0;
+    };
+    
+    // Get current server time
+    const getCurrentServerTime = function() {
+        const [hour, min, sec, day, month, year] = $('#serverTime')
+            .closest('p')
+            .text()
+            .match(/\d+/g);
+        return new Date(year, month - 1, day, hour, min, sec).getTime();
+    };
+    
+    // Parse time string to timestamp
+    const timestampFromString = function(timestr) {
+        const d = $('#serverDate')
+            .text()
+            .split('/')
+            .map((x) => +x);
+        const todayPattern = new RegExp(
+            window.lang['aea2b0aa9ae1534226518faaefffdaad'].replace(
+                '%s',
+                '([\\d+|:]+)'
+            )
+        ).exec(timestr);
+        const tomorrowPattern = new RegExp(
+            window.lang['57d28d1b211fddbb7a499ead5bf23079'].replace(
+                '%s',
+                '([\\d+|:]+)'
+            )
+        ).exec(timestr);
+        const laterDatePattern = new RegExp(
+            window.lang['0cb274c906d622fa8ce524bcfbb7552d']
+                .replace('%1', '([\\d+|\\.]+)')
+                .replace('%2', '([\\d+|:]+)')
+        ).exec(timestr);
+        let t, date;
+
+        if (todayPattern !== null) {
+            t = todayPattern[1].split(':');
+            date = new Date(d[2], d[1] - 1, d[0], t[0], t[1], t[2], t[3] || 0);
+        } else if (tomorrowPattern !== null) {
+            t = tomorrowPattern[1].split(':');
+            date = new Date(
+                d[2],
+                d[1] - 1,
+                d[0] + 1,
+                t[0],
+                t[1],
+                t[2],
+                t[3] || 0
+            );
+        } else {
+            d = (laterDatePattern[1] + d[2]).split('.').map((x) => +x);
+            t = laterDatePattern[2].split(':');
+            date = new Date(d[2], d[1] - 1, d[0], t[0], t[1], t[2], t[3] || 0);
+        }
+
+        return date.getTime();
+    };
+    
+    // Format timestamp for display
+    const formatDateTime = function(timestamp, includeMs = false) {
+        const date = new Date(timestamp);
+        const hours = String(date.getHours()).padStart(2, '0');
+        const minutes = String(date.getMinutes()).padStart(2, '0');
+        const seconds = String(date.getSeconds()).padStart(2, '0');
+        
+        if (includeMs) {
+            const ms = String(date.getMilliseconds()).padStart(3, '0');
+            return `${hours}:${minutes}:${seconds}:${ms}`;
+        }
+        
+        return `${hours}:${minutes}:${seconds}`;
+    };
+    
+    // Format duration in seconds to human readable
+    const formatDuration = function(seconds) {
+        const hours = Math.floor(seconds / 3600);
+        const minutes = Math.floor((seconds % 3600) / 60);
+        const secs = seconds % 60;
+        
+        if (hours > 0) {
+            return `${hours}h ${minutes}m`;
+        } else if (minutes > 0) {
+            return `${minutes}m ${secs}s`;
+        } else {
+            return `${secs}s`;
+        }
+    };
+    
+    // Initialize the SDK
+    const init = function() {
+        if (window.TWSDK._initPromise) {
+            return window.TWSDK._initPromise;
+        }
+        
+        window.TWSDK._initPromise = Promise.all([
+            fetchWorldSettings(),
+            window.TWSDK.Units.fetchUnitSpeeds()
+        ]).then(() => {
+            window.TWSDK._initialized = true;
+            console.log('TWSDK: Initialization complete');
+        }).catch(error => {
+            console.error('TWSDK: Initialization error', error);
+            // Still mark as initialized even if there's an error
+            window.TWSDK._initialized = true;
+        });
+        
+        return window.TWSDK._initPromise;
+    };
+    
+    return {
+        init,
+        fetchWorldSettings,
+        getWorldSettings,
+        getWorldSpeed,
+        getUnitSpeed,
+        getMorale,
+        getNightBonus,
+        getChurch,
+        getWatchtower,
+        getSigilBonus,
+        getCurrentServerTime,
+        timestampFromString,
+        formatDateTime,
+        formatDuration
+    };
+})();
+
+// Coordinate utilities
+window.TWSDK.Coords = (function() {
+    // Parse coordinates from string
+    const parse = function(coordStr) {
+        const match = coordStr.match(/(\d{1,3})\|(\d{1,3})/);
+        if (!match) return null;
+        
+        return {
+            x: parseInt(match[1]),
+            y: parseInt(match[2]),
+            toString: function() {
+                return `${this.x}|${this.y}`;
+            }
+        };
+    };
+    
+    // Calculate distance between two coordinates
+    const distance = function(coord1, coord2) {
+        const c1 = typeof coord1 === 'string' ? parse(coord1) : coord1;
+        const c2 = typeof coord2 === 'string' ? parse(coord2) : coord2;
+        
+        if (!c1 || !c2) return null;
+        
+        const dx = c1.x - c2.x;
+        const dy = c1.y - c2.y;
+        
+        return Math.sqrt(dx * dx + dy * dy);
+    };
+    
+    // Calculate travel time between coordinates
+    const travelTime = function(origin, target, unitSpeed, worldSpeed = 1, unitModifier = 1, sigilBonus = 0) {
+        const dist = distance(origin, target);
+        if (!dist) return null;
+        
+        // Calculate sigil ratio (sigil reduces travel time)
+        const sigilRatio = 1 + (sigilBonus / 100);
+        
+        // Travel time in minutes = (distance * unit speed) / (world speed * unit speed modifier * sigil ratio)
+        const timeInMinutes = (dist * unitSpeed) / (worldSpeed * unitModifier * sigilRatio);
+        
+        // Return in seconds
+        return Math.round(timeInMinutes * 60);
+    };
+    
+    return {
+        parse,
+        distance,
+        travelTime
+    };
+})();
+
+// Unit data utilities
+window.TWSDK.Units = (function() {
+    const unitSpeeds = {
+        spear: 18,
+        sword: 22,
+        axe: 18,
+        archer: 18,
+        spy: 9,
+        light: 10,
+        marcher: 10,
+        heavy: 11,
+        ram: 30,
+        catapult: 30,
+        knight: 10,
+        snob: 35
+    };
+    
+    // Get unit speeds from localStorage or use defaults
+    const getUnitSpeeds = function() {
+        const stored = localStorage.getItem('TWSDK_unitSpeeds');
+        if (stored) {
+            return JSON.parse(stored);
+        }
+        return unitSpeeds;
+    };
+    
+    // Fetch and store unit speeds from game
+    const fetchUnitSpeeds = function() {
+        return $.get('/interface.php?func=get_unit_info')
+            .then((xml) => {
+                const speeds = {};
+                $(xml)
+                    .find('config')
+                    .children()
+                    .each((i, el) => {
+                        const unitName = $(el).prop('nodeName');
+                        const speed = $(el).find('speed').text();
+                        if (speed) {
+                            speeds[unitName] = parseFloat(speed);
+                        }
+                    });
+                
+                localStorage.setItem('TWSDK_unitSpeeds', JSON.stringify(speeds));
+                return speeds;
+            })
+            .catch(error => {
+                console.error('TWSDK: Failed to fetch unit speeds', error);
+                return unitSpeeds; // Return defaults on error
+            });
+    };
+    
+    // Get speed for specific unit
+    const getSpeed = function(unitName) {
+        const speeds = getUnitSpeeds();
+        return speeds[unitName] || null;
+    };
+    
+    return {
+        getUnitSpeeds,
+        fetchUnitSpeeds,
+        getSpeed
+    };
+})();
+
+// Page processing utilities
+window.TWSDK.Page = (function() {
+    // Process all pages of a paginated view
+    const processAllPages = function(url, processorFn) {
+        const processPage = function(pageUrl, page, wrapFn) {
+            const pageText = pageUrl.match('am_farm') ? `&Farm_page=${page}` : `&page=${page}`;
+            
+            return $.ajax({
+                url: pageUrl + pageText,
+            }).then((html) => {
+                return wrapFn(page, $(html));
+            });
+        };
+        
+        const determineNextPage = function(page, $html) {
+            const villageLength = $html.find('#scavenge_mass_screen').length > 0
+                ? $html.find('tr[id*="scavenge_village"]').length
+                : $html.find('tr.row_a, tr.row_ax, tr.row_b, tr.row_bx').length;
+                
+            const navSelect = $html
+                .find('.paged-nav-item')
+                .first()
+                .closest('td')
+                .find('select')
+                .first();
+                
+            const navLength = $html.find('#am_widget_Farm').length > 0
+                ? parseInt(
+                    $('#plunder_list_nav')
+                        .first()
+                        .find('a.paged-nav-item, strong.paged-nav-item')
+                        .last()
+                        .text()
+                        .replace(/\D/g, '')
+                ) - 1
+                : navSelect.length > 0
+                    ? navSelect.find('option').length - 1
+                    : $html.find('.paged-nav-item').not('[href*="page=-1"]').length;
+                    
+            const pageSize = $('#mobileHeader').length > 0
+                ? 10
+                : parseInt($html.find('input[name="page_size"]').val());
+                
+            if (page == -1 && villageLength == 1000) {
+                return Math.floor(1000 / pageSize);
+            } else if (page < navLength) {
+                return page + 1;
+            }
+            
+            return false;
+        };
+        
+        let page = url.match('am_farm') || url.match('scavenge_mass') ? 0 : -1;
+        const wrapFn = function(page, $html) {
+            const dnp = determineNextPage(page, $html);
+            
+            if (dnp) {
+                processorFn($html);
+                return processPage(url, dnp, wrapFn);
+            } else {
+                return processorFn($html);
+            }
+        };
+        
+        return processPage(url, page, wrapFn);
+    };
+    
+    return {
+        processAllPages
+    };
+})();
+
+// String prototype extensions
+String.prototype.toCoord = function(objectified) {
+    const c = (this.match(/\d{1,3}\|\d{1,3}/g) || [false]).pop();
+    return c && objectified
+        ? { x: c.split('|')[0], y: c.split('|')[1] }
+        : c;
+};
+
+String.prototype.toNumber = function() {
+    return parseFloat(this);
+};
+
+Number.prototype.toNumber = function() {
+    return parseFloat(this);
+};
+
+// Mark SDK as ready - ensure window.TWSDK exists
+if (typeof window.TWSDK !== 'undefined') {
+    window.TWSDK._ready = true;
+    console.log('TWSDK: Script loaded and ready');
+} else {
+    console.error('TWSDK: window.TWSDK is undefined at end of script!');
+}

@@ -3,16 +3,111 @@
 
 window.TWSDK = window.TWSDK || {};
 
+// World settings cache
+window.TWSDK._worldSettings = null;
+window.TWSDK._initialized = false;
+window.TWSDK._initPromise = null;
+
 // Core utilities
 window.TWSDK.Core = (function() {
-    // Get world speed from game_data
-    const getWorldSpeed = function() {
-        return game_data.speed || 1;
+    // Fetch world settings from settings page
+    const fetchWorldSettings = function() {
+        if (window.TWSDK._worldSettings) {
+            return Promise.resolve(window.TWSDK._worldSettings);
+        }
+        
+        // Build settings URL based on current game URL
+        const baseUrl = window.location.origin;
+        const market = game_data.market || 'en';
+        const settingsUrl = `${baseUrl}/${market}/page/settings`;
+        
+        return $.get(settingsUrl).then(html => {
+            const $html = $(html);
+            const settings = {};
+            
+            // Parse settings table
+            $html.find('.vis').find('tr').each(function() {
+                const $row = $(this);
+                const key = $row.find('td').first().text().trim();
+                const value = $row.find('td').last().text().trim();
+                
+                if (key && value) {
+                    // Convert numeric values
+                    if (value.match(/^\d+(\.\d+)?$/)) {
+                        settings[key] = parseFloat(value);
+                    } else if (value.toLowerCase() === 'on' || value.toLowerCase() === 'yes') {
+                        settings[key] = true;
+                    } else if (value.toLowerCase() === 'off' || value.toLowerCase() === 'no') {
+                        settings[key] = false;
+                    } else {
+                        settings[key] = value;
+                    }
+                }
+            });
+            
+            // Cache the settings
+            window.TWSDK._worldSettings = settings;
+            localStorage.setItem('TWSDK_worldSettings', JSON.stringify(settings));
+            localStorage.setItem('TWSDK_worldSettings_timestamp', Date.now());
+            
+            return settings;
+        }).catch(() => {
+            // Fallback to localStorage if available and fresh (less than 1 hour old)
+            const cached = localStorage.getItem('TWSDK_worldSettings');
+            const timestamp = localStorage.getItem('TWSDK_worldSettings_timestamp');
+            
+            if (cached && timestamp && (Date.now() - parseInt(timestamp) < 3600000)) {
+                window.TWSDK._worldSettings = JSON.parse(cached);
+                return window.TWSDK._worldSettings;
+            }
+            
+            // Ultimate fallback to game_data
+            return {
+                'Game speed': game_data.speed || 1,
+                'Unit speed': game_data.unit_speed || 1
+            };
+        });
     };
     
-    // Get unit speed from game_data
+    // Get all world settings
+    const getWorldSettings = function() {
+        return window.TWSDK._worldSettings || JSON.parse(localStorage.getItem('TWSDK_worldSettings')) || {};
+    };
+    
+    // Get world speed from settings
+    const getWorldSpeed = function() {
+        const settings = getWorldSettings();
+        return settings['Game speed'] || game_data.speed || 1;
+    };
+    
+    // Get unit speed from settings
     const getUnitSpeed = function() {
-        return game_data.unit_speed || 1;
+        const settings = getWorldSettings();
+        return settings['Unit speed'] || game_data.unit_speed || 1;
+    };
+    
+    // Get morale setting
+    const getMorale = function() {
+        const settings = getWorldSettings();
+        return settings['Morale'] || false;
+    };
+    
+    // Get night bonus setting
+    const getNightBonus = function() {
+        const settings = getWorldSettings();
+        return settings['Night bonus'] || false;
+    };
+    
+    // Get church setting
+    const getChurch = function() {
+        const settings = getWorldSettings();
+        return settings['Church'] || false;
+    };
+    
+    // Get watchtower setting
+    const getWatchtower = function() {
+        const settings = getWorldSettings();
+        return settings['Watchtower'] || false;
     };
     
     // Get current server time
@@ -102,9 +197,37 @@ window.TWSDK.Core = (function() {
         }
     };
     
+    // Initialize the SDK
+    const init = function() {
+        if (window.TWSDK._initPromise) {
+            return window.TWSDK._initPromise;
+        }
+        
+        window.TWSDK._initPromise = Promise.all([
+            fetchWorldSettings(),
+            window.TWSDK.Units.fetchUnitSpeeds()
+        ]).then(() => {
+            window.TWSDK._initialized = true;
+            console.log('TWSDK: Initialization complete');
+        }).catch(error => {
+            console.error('TWSDK: Initialization error', error);
+            // Still mark as initialized even if there's an error
+            window.TWSDK._initialized = true;
+        });
+        
+        return window.TWSDK._initPromise;
+    };
+    
     return {
+        init,
+        fetchWorldSettings,
+        getWorldSettings,
         getWorldSpeed,
         getUnitSpeed,
+        getMorale,
+        getNightBonus,
+        getChurch,
+        getWatchtower,
         getCurrentServerTime,
         timestampFromString,
         formatDateTime,
@@ -204,6 +327,10 @@ window.TWSDK.Units = (function() {
                 
                 localStorage.setItem('TWSDK_unitSpeeds', JSON.stringify(speeds));
                 return speeds;
+            })
+            .catch(error => {
+                console.error('TWSDK: Failed to fetch unit speeds', error);
+                return unitSpeeds; // Return defaults on error
             });
     };
     
@@ -308,10 +435,10 @@ Number.prototype.toNumber = function() {
     return parseFloat(this);
 };
 
-// Initialize SDK
-(function() {
-    // Auto-fetch unit speeds if not available
-    if (!localStorage.getItem('TWSDK_unitSpeeds')) {
-        window.TWSDK.Units.fetchUnitSpeeds();
-    }
-})();
+// Mark SDK as ready - ensure window.TWSDK exists
+if (typeof window.TWSDK !== 'undefined') {
+    window.TWSDK._ready = true;
+    console.log('TWSDK: Script loaded and ready');
+} else {
+    console.error('TWSDK: window.TWSDK is undefined at end of script!');
+}
