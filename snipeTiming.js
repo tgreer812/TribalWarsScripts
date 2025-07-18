@@ -152,7 +152,7 @@ window.TWSDK.Core = (function() {
                 }
             });
 
-            console.log(settings);
+            console.log(settings.toString());
             
             // Cache the settings
             window.TWSDK._worldSettings = settings;
