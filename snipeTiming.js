@@ -108,6 +108,11 @@ function initializeSnipeTiming() {
                 worldSpeed: 'World Speed',
                 unitSpeed: 'Unit Speed',
                 serverTime: 'Server Time',
+                morale: 'Morale',
+                nightBonus: 'Night Bonus',
+                church: 'Church',
+                watchtower: 'Watchtower',
+                worldSettings: 'World Settings',
             }
         };
         
@@ -136,6 +141,7 @@ function initializeSnipeTiming() {
         let worldSpeed = 1;  // Store world speed
         let unitSpeedModifier = 1;  // Store unit speed modifier
         let debugMode = false;  // Debug mode flag
+        let worldSettings = {};  // Store all world settings
         
         // Initialize function - entry point
         const init = function() {
@@ -145,17 +151,19 @@ function initializeSnipeTiming() {
                 return;
             }
             
-            // Fetch world speed on init
-            fetchWorldSpeed();
-            
-            // Show main dialog
-            buildMainDialog();
+            // Fetch world settings first, then speed
+            window.TWSDK.Core.fetchWorldSettings().then(() => {
+                fetchWorldSpeed();
+                // Show main dialog
+                buildMainDialog();
+            });
         };
         
-        // Fetch world speed from game data
+        // Fetch world speed from SDK
         const fetchWorldSpeed = function() {
             worldSpeed = window.TWSDK.Core.getWorldSpeed();
             unitSpeedModifier = window.TWSDK.Core.getUnitSpeed();
+            worldSettings = window.TWSDK.Core.getWorldSettings();
             updateDebugInfo();
         };
         
@@ -168,9 +176,17 @@ function initializeSnipeTiming() {
                         <strong>${t.debugInfo}:</strong><br>
                         ${t.worldSpeed}: ${worldSpeed}x<br>
                         ${t.unitSpeed}: ${unitSpeedModifier}x<br>
+                        ${t.morale}: ${window.TWSDK.Core.getMorale() ? 'Enabled' : 'Disabled'}<br>
+                        ${t.nightBonus}: ${window.TWSDK.Core.getNightBonus() ? 'Enabled' : 'Disabled'}<br>
+                        ${t.church}: ${window.TWSDK.Core.getChurch() ? 'Enabled' : 'Disabled'}<br>
+                        ${t.watchtower}: ${window.TWSDK.Core.getWatchtower() ? 'Enabled' : 'Disabled'}<br>
                         ${t.serverTime}: ${new Date(serverTime).toLocaleString()}<br>
                         Target Coords: ${targetData.coords || 'Not set'}<br>
-                        Villages Loaded: ${Object.keys(villageData).length}
+                        Villages Loaded: ${Object.keys(villageData).length}<br>
+                        <details style="margin-top: 5px;">
+                            <summary style="cursor: pointer;">${t.worldSettings}</summary>
+                            <pre style="font-size: 10px; margin: 5px 0;">${JSON.stringify(worldSettings, null, 2)}</pre>
+                        </details>
                     </div>
                 `;
                 $('#debug-info').html(debugHtml);
@@ -518,6 +534,13 @@ function initializeSnipeTiming() {
                     targetData.arrivalTime = lib.parseIncomingTime(timeStr);
                     updateDebugInfo();
                 }
+            });
+            
+            // Snipe offset slider
+            $('#snipe-offset').on('input', function() {
+                targetData.snipeOffset = parseInt($(this).val());
+                $(this).next('.snipe-slider-value').text($(this).val() + 'ms');
+                updateDebugInfo();
             });
             
             // Calculate button
