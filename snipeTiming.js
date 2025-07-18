@@ -1,13 +1,14 @@
 // TRIBAL WARS SNIPE TIMING CALC
 // Script registration and initialization following FarmingGod pattern
 let DEBUG = true;
+console.log("script ran");
 if (!DEBUG && typeof ScriptAPI !== 'undefined' && ScriptAPI.register) {
     ScriptAPI.register('SnipeTiming', true, 'YourName', 'your.email@example.com');
 }
 
 // Load TWSDK if not already loaded
 if (typeof window.TWSDK === 'undefined') {
-    $.getScript('https://raw.githubusercontent.com/YOUR_USERNAME/YOUR_REPO/main/twsdk.js')
+    $.getScript('https://raw.githubusercontent.com/tgreer812/TribalWarsScripts/refs/heads/main/twsdk.js')
         .done(function() {
             console.log('TWSDK loaded successfully');
             initializeSnipeTiming();
@@ -407,3 +408,6 @@ function initializeSnipeTiming() {
         window.SnipeTiming.Main.init();
     })();
 }
+
+// Simple URL test - paste this in browser URL bar:
+// javascript:$.getScript('https://raw.githubusercontent.com/tgreer812/TribalWarsScripts/refs/heads/main/snipeTiming.js');
