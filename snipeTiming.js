@@ -1208,7 +1208,7 @@ function initializeSnipeTiming() {
                     
                     // Calculate send time (arrival time - travel time - offset)
                     const sendTime = targetData.arrivalTime - (travelTime * 1000) - targetData.snipeOffset;
-                    const arrivalTime = sendTime + (travelTime * 1000);
+                    const arrivalTime = sendTime + (travelTime * 1000) + targetData.snipeOffset;
                     
                     calculatedTimings.push({
                         village: village,
