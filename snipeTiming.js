@@ -644,6 +644,7 @@ function initializeSnipeTiming() {
                     village: 'Village',
                     unit: 'Unit',
                     sendTime: 'Send Time',
+                    sendIn: 'Send In',
                     travelTime: 'Travel Time',
                     arrival: 'Arrival',
                     actions: 'Actions',
@@ -698,6 +699,7 @@ function initializeSnipeTiming() {
         let unitSpeedModifier = 1;  // Store unit speed modifier
         let debugMode = false;  // Debug mode flag
         let worldSettings = {};  // Store all world settings
+        let sendInInterval = null;  // Interval for live countdown
         
         // Initialize function - entry point
         const init = async function() {
@@ -875,6 +877,9 @@ function initializeSnipeTiming() {
                     .my-villages-menu div:hover {
                         background: #eee;
                     }
+                    .expired-row {
+                        color: #999;
+                    }
                 </style>
             `;
             
@@ -964,6 +969,7 @@ function initializeSnipeTiming() {
                                     <th>${t.results.village}</th>
                                     <th>${t.results.unit}</th>
                                     <th>${t.results.sendTime}</th>
+                                    <th>${t.results.sendIn}</th>
                                     <th>${t.results.travelTime}</th>
                                     <th>${t.results.arrival}</th>
                                     <th>${t.results.actions}</th>
@@ -1292,7 +1298,7 @@ function initializeSnipeTiming() {
         // Display calculation results
         const displayResults = function() {
             if (calculatedTimings.length === 0) {
-                $('#results-tbody').html('<tr><td colspan="6" style="text-align: center;">No valid snipe timings found</td></tr>');
+                $('#results-tbody').html('<tr><td colspan="7" style="text-align: center;">No valid snipe timings found</td></tr>');
                 $('#snipe-results').show();
                 return;
             }
@@ -1307,6 +1313,7 @@ function initializeSnipeTiming() {
                         <td><a href="/game.php?village=${timing.village.id}&screen=overview">${timing.village.name}</a></td>
                         <td><img src="/graphic/unit/unit_${timing.unit}.png" title="${t.units[timing.unit]}"> ${t.units[timing.unit]}</td>
                         <td style="font-family: monospace;">${window.TWSDK.Core.formatDateTime(timing.sendTime, true)}</td>
+                        <td class="send-in" data-send-time="${timing.sendTime}"></td>
                         <td>${window.TWSDK.Core.formatDuration(timing.travelTime)}</td>
                         <td style="color: ${isGood ? 'green' : 'red'};">
                             ${isGood ? '✓' : '✗'} ${window.TWSDK.Core.formatDateTime(timing.arrivalTime, true)}
@@ -1320,7 +1327,7 @@ function initializeSnipeTiming() {
             
             $('#results-tbody').html(html);
             $('#snipe-results').show();
-            
+
             // Bind copy buttons
             $('.copy-time').on('click', function() {
                 const time = new Date($(this).data('time'));
@@ -1335,10 +1342,46 @@ function initializeSnipeTiming() {
                 
                 UI.SuccessMessage('Time copied to clipboard: ' + timeStr);
             });
+
+            startSendInTimer();
+        };
+
+        const updateSendInCells = function() {
+            const now = window.TWSDK.Core.getCurrentServerTime();
+            $('#results-tbody tr').each(function() {
+                const $row = $(this);
+                const $cell = $row.find('.send-in');
+                const sendTime = parseInt($cell.data('send-time'), 10);
+                let diff = sendTime - now;
+                if (diff <= 0) {
+                    diff = 0;
+                    $row.addClass('expired-row');
+                }
+                const formatted = window.TWSDK.Core.formatDuration(Math.floor(diff / 1000));
+                $cell.text(formatted);
+            });
+        };
+
+        const startSendInTimer = function() {
+            if (sendInInterval) {
+                clearInterval(sendInInterval);
+            }
+            updateSendInCells();
+            sendInInterval = setInterval(updateSendInCells, 1000);
+        };
+
+        const stopSendInTimer = function() {
+            if (sendInInterval) {
+                clearInterval(sendInInterval);
+                sendInInterval = null;
+            }
         };
         
         return {
-            init: init
+            init: init,
+            startSendInTimer,
+            stopSendInTimer,
+            updateSendInCells
         };
     })(window.SnipeTiming.Library, window.SnipeTiming.Translation);
 
