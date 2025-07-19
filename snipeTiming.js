@@ -852,6 +852,29 @@ function initializeSnipeTiming() {
                         font-style: italic;
                         color: #666;
                     }
+                    .my-villages-wrapper {
+                        position: relative;
+                        display: inline-block;
+                    }
+                    .my-villages-menu {
+                        position: absolute;
+                        left: 0;
+                        top: 100%;
+                        background: #fff;
+                        border: 1px solid #7D510F;
+                        max-height: 200px;
+                        overflow-y: auto;
+                        width: 250px;
+                        z-index: 1000;
+                        display: none;
+                    }
+                    .my-villages-menu div {
+                        padding: 3px 5px;
+                        cursor: pointer;
+                    }
+                    .my-villages-menu div:hover {
+                        background: #eee;
+                    }
                 </style>
             `;
             
@@ -877,7 +900,11 @@ function initializeSnipeTiming() {
                         <h3>Target Information</h3>
                         <div class="snipe-input-group">
                             <label>${t.targetCoords}</label>
-                            <input type="text" id="snipe-target-coords" placeholder="XXX|YYY" pattern="\\d{1,3}\\|\\d{1,3}">
+                            <span class="my-villages-wrapper" id="my-villages-wrapper">
+                                <input type="text" id="snipe-target-coords" placeholder="XXX|YYY" pattern="\\d{1,3}\\|\\d{1,3}">
+                                <button type="button" id="my-villages-btn" class="btn btn-small">&#9660;</button>
+                                <div id="my-villages-menu" class="my-villages-menu"></div>
+                            </span>
                         </div>
                         <div class="snipe-input-group">
                             <label>${t.arrivalTime}</label>
@@ -951,6 +978,7 @@ function initializeSnipeTiming() {
             `;
             
             Dialog.show('SnipeTiming', html);
+            buildVillageDropdown();
             bindEventHandlers();
         };
         
@@ -1005,6 +1033,23 @@ function initializeSnipeTiming() {
             });
             
             return html;
+        };
+
+        const buildVillageDropdown = function(villages = Object.values(villageData)) {
+            const $menu = $('#my-villages-menu');
+            if (!$menu.length) return;
+
+            if (!villages.length) {
+                $menu.html('<div class="loading-indicator">Loading...</div>');
+                return;
+            }
+
+            let html = '';
+            villages.forEach(village => {
+                html += `<div class="village-option" data-coords="${village.coords}">${village.name} (${village.coords})</div>`;
+            });
+
+            $menu.html(html);
         };
         
         // Fetch user's villages and troop counts
@@ -1068,6 +1113,7 @@ function initializeSnipeTiming() {
             const villages = Object.values(villageData);
             const html = buildVillageRows(villages);
             $('#village-list').html(html);
+            buildVillageDropdown(villages);
         };
         
         // Event handlers
@@ -1113,6 +1159,22 @@ function initializeSnipeTiming() {
                     targetData.coords = null;
                     updateDistances();
                     updateDebugInfo();
+                }
+            });
+
+            $('#my-villages-btn').on('click', function(e) {
+                e.stopPropagation();
+                $('#my-villages-menu').toggle();
+            });
+
+            $('#my-villages-menu').on('click', '.village-option', function() {
+                $('#snipe-target-coords').val($(this).data('coords')).trigger('input');
+                $('#my-villages-menu').hide();
+            });
+
+            $(document).on('click.myVillages', function(e) {
+                if (!$(e.target).closest('#my-villages-wrapper').length) {
+                    $('#my-villages-menu').hide();
                 }
             });
             
