@@ -682,6 +682,8 @@ function initializeSnipeTiming() {
                 deselectAll: 'Deselect All',
                 unitSelection: 'Unit Selection:',
                 villageSelection: 'Village Selection:',
+                groups: 'Group:',
+                allGroups: 'All',
                 results: {
                     village: 'Village',
                     unit: 'Unit',
@@ -742,6 +744,8 @@ function initializeSnipeTiming() {
         let debugMode = false;  // Debug mode flag
         let worldSettings = {};  // Store all world settings
         let sendInInterval = null;  // Interval for live countdown
+        let groups = [];           // Available groups
+        let currentGroupId = '0';  // Currently selected group
         
         // Initialize function - entry point
         const init = async function() {
@@ -756,9 +760,10 @@ function initializeSnipeTiming() {
             
             // Wait for world settings to be loaded, then populate UI
             await fetchWorldSpeed();
-            
-            // Fetch user's villages after world settings are loaded
-            fetchUserVillages();
+            await fetchGroups();
+
+            // Fetch user's villages after world settings and groups are loaded
+            fetchUserVillages(currentGroupId);
         };
         
         // Fetch world speed from SDK - now properly async
@@ -987,6 +992,10 @@ function initializeSnipeTiming() {
                             <button class="btn" id="select-all-villages">${t.selectAll}</button>
                             <button class="btn" id="deselect-all-villages">${t.deselectAll}</button>
                         </div>
+                        <div class="snipe-input-group" style="margin-top:5px;">
+                            <label>${t.groups}</label>
+                            <select id="group-filter"><option value="0">${t.allGroups}</option></select>
+                        </div>
                         <table class="vis village-selection-table">
                             <thead>
                                 <tr>
@@ -1032,6 +1041,7 @@ function initializeSnipeTiming() {
             Dialog.show('SnipeTiming', html);
             $('#snipe-arrival-date').val(window.TWSDK.Core.formatDate(window.TWSDK.Core.getCurrentServerTime()));
             buildVillageDropdown();
+            buildGroupsDropdown();
             bindEventHandlers();
         };
         
@@ -1104,17 +1114,42 @@ function initializeSnipeTiming() {
 
             $menu.html(html);
         };
+
+        const buildGroupsDropdown = function() {
+            const $select = $('#group-filter');
+            if (!$select.length) return;
+
+            let html = `<option value="0">${t.allGroups}</option>`;
+            groups.forEach(g => {
+                html += `<option value="${g.group_id}">${g.name}</option>`;
+            });
+
+            $select.html(html).val(currentGroupId);
+        };
+
+        const fetchGroups = function() {
+            return $.get(TribalWars.buildURL('GET', 'groups', { ajax: 'load_group_menu' }))
+                .then(data => {
+                    groups = data.result.filter(g => g.type !== 'separator');
+                    buildGroupsDropdown();
+                })
+                .fail(() => {
+                    groups = [];
+                    buildGroupsDropdown();
+                });
+        };
         
         // Fetch user's villages and troop counts
-        const fetchUserVillages = function() {
+        const fetchUserVillages = function(groupId = '0') {
+            villageData = {};
             // Show loading indicator (already shown in buildMainDialog)
             $('#village-list').html('<tr><td colspan="5" class="loading-indicator">Loading villages...</td></tr>');
-            
+
             // Use TWSDK's page processing to get all villages
             window.TWSDK.Page.processAllPages(
                 TribalWars.buildURL('GET', 'overview_villages', {
                     mode: 'combined',
-                    group: 0 // All villages
+                    group: groupId
                 }),
                 function($html) {
                     // Process each page of villages
@@ -1223,6 +1258,11 @@ function initializeSnipeTiming() {
             $('#my-villages-menu').on('click', '.village-option', function() {
                 $('#snipe-target-coords').val($(this).data('coords')).trigger('input');
                 $('#my-villages-menu').hide();
+            });
+
+            $('#group-filter').on('change', function() {
+                currentGroupId = $(this).val();
+                fetchUserVillages(currentGroupId);
             });
 
             $(document).on('click.myVillages', function(e) {
