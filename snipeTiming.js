@@ -311,13 +311,12 @@ window.TWSDK.Core = (function() {
         const minutes = Math.floor((seconds % 3600) / 60);
         const secs = seconds % 60;
         
-        if (hours > 0) {
-            return `${hours}h ${minutes}m`;
-        } else if (minutes > 0) {
-            return `${minutes}m ${secs}s`;
-        } else {
-            return `${secs}s`;
-        }
+        // Format as hh:mm:ss for consistent spacing
+        const hoursStr = String(hours).padStart(2, '0');
+        const minutesStr = String(minutes).padStart(2, '0');
+        const secsStr = String(secs).padStart(2, '0');
+        
+        return `${hoursStr}:${minutesStr}:${secsStr}`;
     };
     
     // Initialize the SDK
