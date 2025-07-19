@@ -305,18 +305,29 @@ window.TWSDK.Core = (function() {
         return `${hours}:${minutes}:${seconds}`;
     };
     
-    // Format duration in seconds to human readable
-    const formatDuration = function(seconds) {
+    // Format duration in seconds to human readable hh:mm:ss
+    const formatDurationHMS = function(seconds) {
         const hours = Math.floor(seconds / 3600);
         const minutes = Math.floor((seconds % 3600) / 60);
         const secs = seconds % 60;
-        
-        // Format as hh:mm:ss for consistent spacing
+
         const hoursStr = String(hours).padStart(2, '0');
         const minutesStr = String(minutes).padStart(2, '0');
         const secsStr = String(secs).padStart(2, '0');
-        
+
         return `${hoursStr}:${minutesStr}:${secsStr}`;
+    };
+
+    // Backwards-compatible alias
+    const formatDuration = formatDurationHMS;
+
+    // Format date as DD.MM.YYYY
+    const formatDate = function(timestamp) {
+        const date = new Date(timestamp);
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+        return `${day}.${month}.${year}`;
     };
     
     // Initialize the SDK
@@ -354,7 +365,9 @@ window.TWSDK.Core = (function() {
         getCurrentServerTime,
         timestampFromString,
         formatDateTime,
-        formatDuration
+        formatDuration,
+        formatDurationHMS,
+        formatDate
     };
 })();
 
@@ -599,24 +612,52 @@ function initializeSnipeTiming() {
         };
         
         // Parse incoming attack time from various formats
-        const parseIncomingTime = function(timeString) {
+        const parseIncomingTime = function(timeString, dateString = '') {
+            // If a date is provided explicitly, parse it together with the time
+            if (dateString) {
+                const dParts = dateString.match(/(\d{1,2})[./](\d{1,2})[./](\d{4})/);
+                if (dParts) {
+                    const t = timeString.split(':');
+                    if (t.length >= 3) {
+                        return new Date(
+                            parseInt(dParts[3], 10),
+                            parseInt(dParts[2], 10) - 1,
+                            parseInt(dParts[1], 10),
+                            parseInt(t[0], 10),
+                            parseInt(t[1], 10),
+                            parseInt(t[2], 10),
+                            parseInt(t[3] || '0', 10)
+                        ).getTime();
+                    }
+                }
+            }
+
             // Try to parse using TWSDK first
             try {
-                return window.TWSDK.Core.timestampFromString(timeString);
+                const ts = window.TWSDK.Core.timestampFromString(timeString);
+                if (!dateString) {
+                    const now = window.TWSDK.Core.getCurrentServerTime();
+                    if (ts < now) {
+                        return ts + 86400000; // next day if time already passed
+                    }
+                }
+                return ts;
             } catch (e) {
                 // Fallback for simple HH:MM:SS:mmm format
                 const parts = timeString.split(':');
                 if (parts.length >= 3) {
-                    const now = new Date();
-                    now.setHours(parseInt(parts[0]));
-                    now.setMinutes(parseInt(parts[1]));
-                    now.setSeconds(parseInt(parts[2]));
-                    if (parts[3]) {
-                        now.setMilliseconds(parseInt(parts[3]));
+                    const now = new Date(window.TWSDK.Core.getCurrentServerTime());
+                    now.setHours(parseInt(parts[0], 10));
+                    now.setMinutes(parseInt(parts[1], 10));
+                    now.setSeconds(parseInt(parts[2], 10));
+                    now.setMilliseconds(parts[3] ? parseInt(parts[3], 10) : 0);
+                    let ts = now.getTime();
+                    if (!dateString && ts < window.TWSDK.Core.getCurrentServerTime()) {
+                        ts += 86400000;
                     }
-                    return now.getTime();
+                    return ts;
                 }
-                return new Date().getTime() + 3600000; // 1 hour from now as fallback
+                return window.TWSDK.Core.getCurrentServerTime() + 3600000; // 1 hour from now fallback
             }
         };
         
@@ -632,6 +673,7 @@ function initializeSnipeTiming() {
             en_US: {
                 title: 'Snipe Timing Calculator',
                 targetCoords: 'Target coordinates:',
+                arrivalDate: 'Arrival date:',
                 arrivalTime: 'Desired arrival time:',
                 snipeOffset: 'Snipe offset (ms):',
                 ownVillages: 'Your villages:',
@@ -912,6 +954,10 @@ function initializeSnipeTiming() {
                             </span>
                         </div>
                         <div class="snipe-input-group">
+                            <label>${t.arrivalDate}</label>
+                            <input type="text" id="snipe-arrival-date" placeholder="DD.MM.YYYY">
+                        </div>
+                        <div class="snipe-input-group">
                             <label>${t.arrivalTime}</label>
                             <input type="text" id="snipe-arrival-time" placeholder="HH:MM:SS:mmm">
                         </div>
@@ -984,6 +1030,7 @@ function initializeSnipeTiming() {
             `;
             
             Dialog.show('SnipeTiming', html);
+            $('#snipe-arrival-date').val(window.TWSDK.Core.formatDate(window.TWSDK.Core.getCurrentServerTime()));
             buildVillageDropdown();
             bindEventHandlers();
         };
@@ -1184,11 +1231,12 @@ function initializeSnipeTiming() {
                 }
             });
             
-            // Arrival time input
-            $('#snipe-arrival-time').on('input', function() {
-                const timeStr = $(this).val();
+            // Arrival date/time inputs
+            $('#snipe-arrival-date, #snipe-arrival-time').on('input', function() {
+                const timeStr = $('#snipe-arrival-time').val();
+                const dateStr = $('#snipe-arrival-date').val();
                 if (timeStr) {
-                    targetData.arrivalTime = lib.parseIncomingTime(timeStr);
+                    targetData.arrivalTime = lib.parseIncomingTime(timeStr, dateStr);
                     updateDebugInfo();
                 }
             });
@@ -1357,7 +1405,7 @@ function initializeSnipeTiming() {
                     diff = 0;
                     $row.addClass('expired-row');
                 }
-                const formatted = window.TWSDK.Core.formatDuration(Math.floor(diff / 1000));
+                const formatted = window.TWSDK.Core.formatDurationHMS(Math.floor(diff / 1000));
                 $cell.text(formatted);
             });
         };
@@ -1611,6 +1659,26 @@ window.TWSDK.Core = (function() {
             return `${secs}s`;
         }
     };
+
+    // Format duration in seconds as hh:mm:ss
+    const formatDurationHMS = function(seconds) {
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = seconds % 60;
+        const hStr = String(h).padStart(2, '0');
+        const mStr = String(m).padStart(2, '0');
+        const sStr = String(s).padStart(2, '0');
+        return `${hStr}:${mStr}:${sStr}`;
+    };
+
+    // Format date as DD.MM.YYYY
+    const formatDate = function(timestamp) {
+        const d = new Date(timestamp);
+        const day = String(d.getDate()).padStart(2, '0');
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const year = d.getFullYear();
+        return `${day}.${month}.${year}`;
+    };
     
     // Initialize the SDK
     const init = function() {
@@ -1647,7 +1715,9 @@ window.TWSDK.Core = (function() {
         getCurrentServerTime,
         timestampFromString,
         formatDateTime,
-        formatDuration
+        formatDuration,
+        formatDurationHMS,
+        formatDate
     };
 })();
 
