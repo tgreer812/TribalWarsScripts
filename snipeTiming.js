@@ -984,18 +984,23 @@ function initializeSnipeTiming() {
                 const distance = targetData.coords ? 
                     window.TWSDK.Coords.distance(village.coords, targetData.coords).toFixed(1) : 
                     '0.0';
-                    
+                
+                // Build troops display dynamically from all available troops
+                let troopsHtml = '';
+                for (const [unitType, count] of Object.entries(village.troops)) {
+                    if (count > 0) {
+                        const unitName = t.units[unitType] || unitType; // fallback to unit key if translation missing
+                        troopsHtml += `<img src="/graphic/unit/unit_${unitType}.png" title="${unitName}"> ${count} `;
+                    }
+                }
+                
                 html += `
                     <tr>
                         <td><input type="checkbox" class="village-checkbox" data-id="${village.id}"></td>
                         <td><a href="/game.php?village=${village.id}&screen=overview">${village.name}</a></td>
                         <td>${village.coords}</td>
                         <td class="distance-cell" data-coords="${village.coords}">${distance}</td>
-                        <td>
-                            ${village.troops.snob > 0 ? `<img src="/graphic/unit/unit_snob.png" title="Noble"> ${village.troops.snob}` : ''}
-                            ${village.troops.heavy > 0 ? `<img src="/graphic/unit/unit_heavy.png" title="Heavy"> ${village.troops.heavy}` : ''}
-                            ${village.troops.light > 0 ? `<img src="/graphic/unit/unit_light.png" title="Light"> ${village.troops.light}` : ''}
-                        </td>
+                        <td>${troopsHtml}</td>
                     </tr>
                 `;
             });
