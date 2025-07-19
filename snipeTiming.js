@@ -305,18 +305,29 @@ window.TWSDK.Core = (function() {
         return `${hours}:${minutes}:${seconds}`;
     };
     
-    // Format duration in seconds to human readable
-    const formatDuration = function(seconds) {
+    // Format duration in seconds to human readable hh:mm:ss
+    const formatDurationHMS = function(seconds) {
         const hours = Math.floor(seconds / 3600);
         const minutes = Math.floor((seconds % 3600) / 60);
         const secs = seconds % 60;
-        
-        // Format as hh:mm:ss for consistent spacing
+
         const hoursStr = String(hours).padStart(2, '0');
         const minutesStr = String(minutes).padStart(2, '0');
         const secsStr = String(secs).padStart(2, '0');
-        
+
         return `${hoursStr}:${minutesStr}:${secsStr}`;
+    };
+
+    // Backwards-compatible alias
+    const formatDuration = formatDurationHMS;
+
+    // Format date as DD.MM.YYYY
+    const formatDate = function(timestamp) {
+        const date = new Date(timestamp);
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+        return `${day}.${month}.${year}`;
     };
     
     // Initialize the SDK
@@ -354,7 +365,9 @@ window.TWSDK.Core = (function() {
         getCurrentServerTime,
         timestampFromString,
         formatDateTime,
-        formatDuration
+        formatDuration,
+        formatDurationHMS,
+        formatDate
     };
 })();
 
@@ -599,24 +612,52 @@ function initializeSnipeTiming() {
         };
         
         // Parse incoming attack time from various formats
-        const parseIncomingTime = function(timeString) {
+        const parseIncomingTime = function(timeString, dateString = '') {
+            // If a date is provided explicitly, parse it together with the time
+            if (dateString) {
+                const dParts = dateString.match(/(\d{1,2})[./](\d{1,2})[./](\d{4})/);
+                if (dParts) {
+                    const t = timeString.split(':');
+                    if (t.length >= 3) {
+                        return new Date(
+                            parseInt(dParts[3], 10),
+                            parseInt(dParts[2], 10) - 1,
+                            parseInt(dParts[1], 10),
+                            parseInt(t[0], 10),
+                            parseInt(t[1], 10),
+                            parseInt(t[2], 10),
+                            parseInt(t[3] || '0', 10)
+                        ).getTime();
+                    }
+                }
+            }
+
             // Try to parse using TWSDK first
             try {
-                return window.TWSDK.Core.timestampFromString(timeString);
+                const ts = window.TWSDK.Core.timestampFromString(timeString);
+                if (!dateString) {
+                    const now = window.TWSDK.Core.getCurrentServerTime();
+                    if (ts < now) {
+                        return ts + 86400000; // next day if time already passed
+                    }
+                }
+                return ts;
             } catch (e) {
                 // Fallback for simple HH:MM:SS:mmm format
                 const parts = timeString.split(':');
                 if (parts.length >= 3) {
-                    const now = new Date();
-                    now.setHours(parseInt(parts[0]));
-                    now.setMinutes(parseInt(parts[1]));
-                    now.setSeconds(parseInt(parts[2]));
-                    if (parts[3]) {
-                        now.setMilliseconds(parseInt(parts[3]));
+                    const now = new Date(window.TWSDK.Core.getCurrentServerTime());
+                    now.setHours(parseInt(parts[0], 10));
+                    now.setMinutes(parseInt(parts[1], 10));
+                    now.setSeconds(parseInt(parts[2], 10));
+                    now.setMilliseconds(parts[3] ? parseInt(parts[3], 10) : 0);
+                    let ts = now.getTime();
+                    if (!dateString && ts < window.TWSDK.Core.getCurrentServerTime()) {
+                        ts += 86400000;
                     }
-                    return now.getTime();
+                    return ts;
                 }
-                return new Date().getTime() + 3600000; // 1 hour from now as fallback
+                return window.TWSDK.Core.getCurrentServerTime() + 3600000; // 1 hour from now fallback
             }
         };
         
@@ -632,6 +673,7 @@ function initializeSnipeTiming() {
             en_US: {
                 title: 'Snipe Timing Calculator',
                 targetCoords: 'Target coordinates:',
+                arrivalDate: 'Arrival date:',
                 arrivalTime: 'Desired arrival time:',
                 snipeOffset: 'Snipe offset (ms):',
                 ownVillages: 'Your villages:',
@@ -640,10 +682,13 @@ function initializeSnipeTiming() {
                 deselectAll: 'Deselect All',
                 unitSelection: 'Unit Selection:',
                 villageSelection: 'Village Selection:',
+                groups: 'Group:',
+                allGroups: 'All',
                 results: {
                     village: 'Village',
                     unit: 'Unit',
                     sendTime: 'Send Time',
+                    sendIn: 'Send In',
                     travelTime: 'Travel Time',
                     arrival: 'Arrival',
                     actions: 'Actions',
@@ -698,6 +743,9 @@ function initializeSnipeTiming() {
         let unitSpeedModifier = 1;  // Store unit speed modifier
         let debugMode = false;  // Debug mode flag
         let worldSettings = {};  // Store all world settings
+        let sendInInterval = null;  // Interval for live countdown
+        let groups = [];           // Available groups
+        let currentGroupId = '0';  // Currently selected group
         
         // Initialize function - entry point
         const init = async function() {
@@ -712,9 +760,10 @@ function initializeSnipeTiming() {
             
             // Wait for world settings to be loaded, then populate UI
             await fetchWorldSpeed();
-            
-            // Fetch user's villages after world settings are loaded
-            fetchUserVillages();
+            await fetchGroups();
+
+            // Fetch user's villages after world settings and groups are loaded
+            fetchUserVillages(currentGroupId);
         };
         
         // Fetch world speed from SDK - now properly async
@@ -852,6 +901,32 @@ function initializeSnipeTiming() {
                         font-style: italic;
                         color: #666;
                     }
+                    .my-villages-wrapper {
+                        position: relative;
+                        display: inline-block;
+                    }
+                    .my-villages-menu {
+                        position: absolute;
+                        left: 0;
+                        top: 100%;
+                        background: #fff;
+                        border: 1px solid #7D510F;
+                        max-height: 200px;
+                        overflow-y: auto;
+                        width: 250px;
+                        z-index: 1000;
+                        display: none;
+                    }
+                    .my-villages-menu div {
+                        padding: 3px 5px;
+                        cursor: pointer;
+                    }
+                    .my-villages-menu div:hover {
+                        background: #eee;
+                    }
+                    .expired-row {
+                        color: #999;
+                    }
                 </style>
             `;
             
@@ -877,7 +952,15 @@ function initializeSnipeTiming() {
                         <h3>Target Information</h3>
                         <div class="snipe-input-group">
                             <label>${t.targetCoords}</label>
-                            <input type="text" id="snipe-target-coords" placeholder="XXX|YYY" pattern="\\d{1,3}\\|\\d{1,3}">
+                            <span class="my-villages-wrapper" id="my-villages-wrapper">
+                                <input type="text" id="snipe-target-coords" placeholder="XXX|YYY" pattern="\\d{1,3}\\|\\d{1,3}">
+                                <button type="button" id="my-villages-btn" class="btn btn-small">&#9660;</button>
+                                <div id="my-villages-menu" class="my-villages-menu"></div>
+                            </span>
+                        </div>
+                        <div class="snipe-input-group">
+                            <label>${t.arrivalDate}</label>
+                            <input type="text" id="snipe-arrival-date" placeholder="DD.MM.YYYY">
                         </div>
                         <div class="snipe-input-group">
                             <label>${t.arrivalTime}</label>
@@ -909,6 +992,10 @@ function initializeSnipeTiming() {
                             <button class="btn" id="select-all-villages">${t.selectAll}</button>
                             <button class="btn" id="deselect-all-villages">${t.deselectAll}</button>
                         </div>
+                        <div class="snipe-input-group" style="margin-top:5px;">
+                            <label>${t.groups}</label>
+                            <select id="group-filter"><option value="0">${t.allGroups}</option></select>
+                        </div>
                         <table class="vis village-selection-table">
                             <thead>
                                 <tr>
@@ -937,6 +1024,7 @@ function initializeSnipeTiming() {
                                     <th>${t.results.village}</th>
                                     <th>${t.results.unit}</th>
                                     <th>${t.results.sendTime}</th>
+                                    <th>${t.results.sendIn}</th>
                                     <th>${t.results.travelTime}</th>
                                     <th>${t.results.arrival}</th>
                                     <th>${t.results.actions}</th>
@@ -951,6 +1039,9 @@ function initializeSnipeTiming() {
             `;
             
             Dialog.show('SnipeTiming', html);
+            $('#snipe-arrival-date').val(window.TWSDK.Core.formatDate(window.TWSDK.Core.getCurrentServerTime()));
+            buildVillageDropdown();
+            buildGroupsDropdown();
             bindEventHandlers();
         };
         
@@ -1006,17 +1097,59 @@ function initializeSnipeTiming() {
             
             return html;
         };
+
+        const buildVillageDropdown = function(villages = Object.values(villageData)) {
+            const $menu = $('#my-villages-menu');
+            if (!$menu.length) return;
+
+            if (!villages.length) {
+                $menu.html('<div class="loading-indicator">Loading...</div>');
+                return;
+            }
+
+            let html = '';
+            villages.forEach(village => {
+                html += `<div class="village-option" data-coords="${village.coords}">${village.name} (${village.coords})</div>`;
+            });
+
+            $menu.html(html);
+        };
+
+        const buildGroupsDropdown = function() {
+            const $select = $('#group-filter');
+            if (!$select.length) return;
+
+            let html = `<option value="0">${t.allGroups}</option>`;
+            groups.forEach(g => {
+                html += `<option value="${g.group_id}">${g.name}</option>`;
+            });
+
+            $select.html(html).val(currentGroupId);
+        };
+
+        const fetchGroups = function() {
+            return $.get(TribalWars.buildURL('GET', 'groups', { ajax: 'load_group_menu' }))
+                .then(data => {
+                    groups = data.result.filter(g => g.type !== 'separator');
+                    buildGroupsDropdown();
+                })
+                .fail(() => {
+                    groups = [];
+                    buildGroupsDropdown();
+                });
+        };
         
         // Fetch user's villages and troop counts
-        const fetchUserVillages = function() {
+        const fetchUserVillages = function(groupId = '0') {
+            villageData = {};
             // Show loading indicator (already shown in buildMainDialog)
             $('#village-list').html('<tr><td colspan="5" class="loading-indicator">Loading villages...</td></tr>');
-            
+
             // Use TWSDK's page processing to get all villages
             window.TWSDK.Page.processAllPages(
                 TribalWars.buildURL('GET', 'overview_villages', {
                     mode: 'combined',
-                    group: 0 // All villages
+                    group: groupId
                 }),
                 function($html) {
                     // Process each page of villages
@@ -1068,6 +1201,7 @@ function initializeSnipeTiming() {
             const villages = Object.values(villageData);
             const html = buildVillageRows(villages);
             $('#village-list').html(html);
+            buildVillageDropdown(villages);
         };
         
         // Event handlers
@@ -1115,12 +1249,34 @@ function initializeSnipeTiming() {
                     updateDebugInfo();
                 }
             });
+
+            $('#my-villages-btn').on('click', function(e) {
+                e.stopPropagation();
+                $('#my-villages-menu').toggle();
+            });
+
+            $('#my-villages-menu').on('click', '.village-option', function() {
+                $('#snipe-target-coords').val($(this).data('coords')).trigger('input');
+                $('#my-villages-menu').hide();
+            });
+
+            $('#group-filter').on('change', function() {
+                currentGroupId = $(this).val();
+                fetchUserVillages(currentGroupId);
+            });
+
+            $(document).on('click.myVillages', function(e) {
+                if (!$(e.target).closest('#my-villages-wrapper').length) {
+                    $('#my-villages-menu').hide();
+                }
+            });
             
-            // Arrival time input
-            $('#snipe-arrival-time').on('input', function() {
-                const timeStr = $(this).val();
+            // Arrival date/time inputs
+            $('#snipe-arrival-date, #snipe-arrival-time').on('input', function() {
+                const timeStr = $('#snipe-arrival-time').val();
+                const dateStr = $('#snipe-arrival-date').val();
                 if (timeStr) {
-                    targetData.arrivalTime = lib.parseIncomingTime(timeStr);
+                    targetData.arrivalTime = lib.parseIncomingTime(timeStr, dateStr);
                     updateDebugInfo();
                 }
             });
@@ -1230,7 +1386,7 @@ function initializeSnipeTiming() {
         // Display calculation results
         const displayResults = function() {
             if (calculatedTimings.length === 0) {
-                $('#results-tbody').html('<tr><td colspan="6" style="text-align: center;">No valid snipe timings found</td></tr>');
+                $('#results-tbody').html('<tr><td colspan="7" style="text-align: center;">No valid snipe timings found</td></tr>');
                 $('#snipe-results').show();
                 return;
             }
@@ -1245,6 +1401,7 @@ function initializeSnipeTiming() {
                         <td><a href="/game.php?village=${timing.village.id}&screen=overview">${timing.village.name}</a></td>
                         <td><img src="/graphic/unit/unit_${timing.unit}.png" title="${t.units[timing.unit]}"> ${t.units[timing.unit]}</td>
                         <td style="font-family: monospace;">${window.TWSDK.Core.formatDateTime(timing.sendTime, true)}</td>
+                        <td class="send-in" data-send-time="${timing.sendTime}"></td>
                         <td>${window.TWSDK.Core.formatDuration(timing.travelTime)}</td>
                         <td style="color: ${isGood ? 'green' : 'red'};">
                             ${isGood ? '✓' : '✗'} ${window.TWSDK.Core.formatDateTime(timing.arrivalTime, true)}
@@ -1258,7 +1415,7 @@ function initializeSnipeTiming() {
             
             $('#results-tbody').html(html);
             $('#snipe-results').show();
-            
+
             // Bind copy buttons
             $('.copy-time').on('click', function() {
                 const time = new Date($(this).data('time'));
@@ -1273,10 +1430,46 @@ function initializeSnipeTiming() {
                 
                 UI.SuccessMessage('Time copied to clipboard: ' + timeStr);
             });
+
+            startSendInTimer();
+        };
+
+        const updateSendInCells = function() {
+            const now = window.TWSDK.Core.getCurrentServerTime();
+            $('#results-tbody tr').each(function() {
+                const $row = $(this);
+                const $cell = $row.find('.send-in');
+                const sendTime = parseInt($cell.data('send-time'), 10);
+                let diff = sendTime - now;
+                if (diff <= 0) {
+                    diff = 0;
+                    $row.addClass('expired-row');
+                }
+                const formatted = window.TWSDK.Core.formatDurationHMS(Math.floor(diff / 1000));
+                $cell.text(formatted);
+            });
+        };
+
+        const startSendInTimer = function() {
+            if (sendInInterval) {
+                clearInterval(sendInInterval);
+            }
+            updateSendInCells();
+            sendInInterval = setInterval(updateSendInCells, 1000);
+        };
+
+        const stopSendInTimer = function() {
+            if (sendInInterval) {
+                clearInterval(sendInInterval);
+                sendInInterval = null;
+            }
         };
         
         return {
-            init: init
+            init: init,
+            startSendInTimer,
+            stopSendInTimer,
+            updateSendInCells
         };
     })(window.SnipeTiming.Library, window.SnipeTiming.Translation);
 
@@ -1506,6 +1699,26 @@ window.TWSDK.Core = (function() {
             return `${secs}s`;
         }
     };
+
+    // Format duration in seconds as hh:mm:ss
+    const formatDurationHMS = function(seconds) {
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = seconds % 60;
+        const hStr = String(h).padStart(2, '0');
+        const mStr = String(m).padStart(2, '0');
+        const sStr = String(s).padStart(2, '0');
+        return `${hStr}:${mStr}:${sStr}`;
+    };
+
+    // Format date as DD.MM.YYYY
+    const formatDate = function(timestamp) {
+        const d = new Date(timestamp);
+        const day = String(d.getDate()).padStart(2, '0');
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const year = d.getFullYear();
+        return `${day}.${month}.${year}`;
+    };
     
     // Initialize the SDK
     const init = function() {
@@ -1542,7 +1755,9 @@ window.TWSDK.Core = (function() {
         getCurrentServerTime,
         timestampFromString,
         formatDateTime,
-        formatDuration
+        formatDuration,
+        formatDurationHMS,
+        formatDate
     };
 })();
 
