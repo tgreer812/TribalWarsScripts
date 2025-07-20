@@ -64,14 +64,48 @@
         }
     };
     
+    // Build and inject filter UI
+    const buildFilterUI = function() {
+        // Add custom CSS for filtered rows
+        const customCSS = `
+            <style>
+                .village-filter-hidden {
+                    display: none !important;
+                }
+            </style>
+        `;
+        
+        const filterHTML = `
+            ${customCSS}
+            <div id="village-filter-container" style="margin: 10px 0; padding: 10px; background: #f4e4bc; border: 1px solid #c1a264;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <strong>Filter Villages by Points:</strong>
+                    <input type="text" id="points-filter" placeholder="e.g. >1000, <2000, =1500" style="width: 200px;">
+                    <button class="btn" id="clear-filter">Clear</button>
+                    <span id="filter-status" style="margin-left: 10px;"></span>
+                </div>
+                <div style="margin-top: 5px; font-size: 11px; color: #666;">
+                    Examples: >1000 (greater than), <2000 (less than), >=500 (greater or equal), <=3000 (less or equal), =1500 (exactly)
+                </div>
+            </div>
+        `;
+        
+        // Insert before the villages table
+        $villageTable.before(filterHTML);
+    };
+    
     // Apply filter to table
     const applyFilter = function(filterStr) {
         const filter = parseFilter(filterStr);
         let visibleCount = 0;
         let totalCount = 0;
         
-        // Process each village row
-        $villageTable.find('tr').each(function(index) {
+        console.log('=== Starting filter application ===');
+        console.log('Filter string:', filterStr);
+        console.log('Parsed filter:', filter);
+        
+        // Process each village row - only direct children of the table
+        $villageTable.find('> tbody > tr, > tr').each(function(index) {
             const $row = $(this);
             
             // Skip header row
@@ -79,22 +113,58 @@
                 return;
             }
             
+            // Skip rows that don't have enough cells (these are nested table rows)
+            if ($row.find('> td').length < 3) {
+                console.log(`Skipping row ${index} - only ${$row.find('> td').length} cells`);
+                return;
+            }
+            
             totalCount++;
             
-            // Get points from the row - points are in column 4 (index 4)
-            const $pointsCell = $row.find('td').eq(4);
+            // Debug: Log row structure for first few rows
+            if (totalCount <= 3) {
+                console.log(`Row ${totalCount} HTML:`, $row.html());
+                console.log(`Row ${totalCount} cells:`, $row.find('> td').length);
+                
+                // Log each cell's content
+                $row.find('> td').each(function(cellIndex) {
+                    const $cell = $(this);
+                    console.log(`  Cell ${cellIndex}:`, {
+                        text: $cell.text().trim(),
+                        html: $cell.html().substring(0, 100) + '...',
+                        hasNestedTable: $cell.find('table').length > 0
+                    });
+                });
+            }
+            
+            // Get points from the row - adjust index based on actual structure
+            // From the debug output, we know points are in the last cell
+            const $cells = $row.find('> td');
+            const $pointsCell = $cells.last(); // Use last cell instead of fixed index
             const pointsText = $pointsCell.text().trim();
             // Remove all non-digits (including the period separator used in TW, e.g., "1.234" → "1234")
             const points = parseInt(pointsText.replace(/\D/g, ''), 10);
             
+            // Debug points extraction
+            if (totalCount <= 3) {
+                console.log(`Row ${totalCount} points:`, {
+                    pointsText: pointsText,
+                    pointsParsed: points,
+                    isNaN: isNaN(points)
+                });
+            }
+            
             // Check if row matches filter
             if (!filter || matchesFilter(points, filter)) {
-                $row.show();
+                $row.removeClass('village-filter-hidden');
                 visibleCount++;
             } else {
-                $row.hide();
+                $row.addClass('village-filter-hidden');
             }
         });
+        
+        console.log('=== Filter application complete ===');
+        console.log(`Total villages: ${totalCount}, Visible: ${visibleCount}`);
         
         // Update status
         updateStatus(visibleCount, totalCount, filter);
@@ -114,26 +184,6 @@
             $status.text(`Showing ${visible} of ${total} villages`);
             $status.css('color', visible === 0 ? 'orange' : 'green');
         }
-    };
-    
-    // Build and inject filter UI
-    const buildFilterUI = function() {
-        const filterHTML = `
-            <div id="village-filter-container" style="margin: 10px 0; padding: 10px; background: #f4e4bc; border: 1px solid #c1a264;">
-                <div style="display: flex; align-items: center; gap: 10px;">
-                    <strong>Filter Villages by Points:</strong>
-                    <input type="text" id="points-filter" placeholder="e.g. >1000, <2000, =1500" style="width: 200px;">
-                    <button class="btn" id="clear-filter">Clear</button>
-                    <span id="filter-status" style="margin-left: 10px;"></span>
-                </div>
-                <div style="margin-top: 5px; font-size: 11px; color: #666;">
-                    Examples: >1000 (greater than), <2000 (less than), >=500 (greater or equal), <=3000 (less or equal), =1500 (exactly)
-                </div>
-            </div>
-        `;
-        
-        // Insert before the villages table
-        $villageTable.before(filterHTML);
     };
     
     // Bind event handlers
