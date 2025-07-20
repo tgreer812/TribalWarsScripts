@@ -100,10 +100,6 @@
         let visibleCount = 0;
         let totalCount = 0;
         
-        console.log('=== Starting filter application ===');
-        console.log('Filter string:', filterStr);
-        console.log('Parsed filter:', filter);
-        
         // Process each village row - only direct children of the table
         $villageTable.find('> tbody > tr, > tr').each(function(index) {
             const $row = $(this);
@@ -115,27 +111,10 @@
             
             // Skip rows that don't have enough cells (these are nested table rows)
             if ($row.find('> td').length < 3) {
-                console.log(`Skipping row ${index} - only ${$row.find('> td').length} cells`);
                 return;
             }
             
             totalCount++;
-            
-            // Debug: Log row structure for first few rows
-            if (totalCount <= 3) {
-                console.log(`Row ${totalCount} HTML:`, $row.html());
-                console.log(`Row ${totalCount} cells:`, $row.find('> td').length);
-                
-                // Log each cell's content
-                $row.find('> td').each(function(cellIndex) {
-                    const $cell = $(this);
-                    console.log(`  Cell ${cellIndex}:`, {
-                        text: $cell.text().trim(),
-                        html: $cell.html().substring(0, 100) + '...',
-                        hasNestedTable: $cell.find('table').length > 0
-                    });
-                });
-            }
             
             // Get points from the row - adjust index based on actual structure
             // From the debug output, we know points are in the last cell
@@ -144,15 +123,6 @@
             const pointsText = $pointsCell.text().trim();
             // Remove all non-digits (including the period separator used in TW, e.g., "1.234" → "1234")
             const points = parseInt(pointsText.replace(/\D/g, ''), 10);
-            
-            // Debug points extraction
-            if (totalCount <= 3) {
-                console.log(`Row ${totalCount} points:`, {
-                    pointsText: pointsText,
-                    pointsParsed: points,
-                    isNaN: isNaN(points)
-                });
-            }
             
             // Check if row matches filter
             if (!filter || matchesFilter(points, filter)) {
@@ -163,11 +133,21 @@
             }
         });
         
-        console.log('=== Filter application complete ===');
-        console.log(`Total villages: ${totalCount}, Visible: ${visibleCount}`);
-        
         // Update status
         updateStatus(visibleCount, totalCount, filter);
+        
+        // Update table header
+        updateTableHeader(visibleCount);
+    };
+    
+    // Update table header with current village count
+    const updateTableHeader = function(count) {
+        const $header = $villageTable.find('thead th').first();
+        const headerText = $header.text();
+        
+        // Replace the number in parentheses
+        const newHeaderText = headerText.replace(/\(\d+\)/, `(${count})`);
+        $header.text(newHeaderText);
     };
     
     // Update filter status display
@@ -215,7 +195,7 @@
         bindEvents();
         
         // Show initial status
-        const totalVillages = $villageTable.find('tr').length - 1; // Subtract header row
+        const totalVillages = $villageTable.find('> tbody > tr, > tr').length - 1; // Subtract header row
         updateStatus(totalVillages, totalVillages, null);
     };
     
