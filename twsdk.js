@@ -10,46 +10,54 @@ window.TWSDK._initPromise = null;
 
 // Core utilities
 window.TWSDK.Core = (function() {
-    // Fetch world settings from settings page
+    // Fetch world settings from config XML
     const fetchWorldSettings = function() {
         if (window.TWSDK._worldSettings) {
             return Promise.resolve(window.TWSDK._worldSettings);
         }
         
-        // Build settings URL based on current game URL
-        const baseUrl = window.location.origin;
-        const market = game_data.market || 'en';
-        const settingsUrl = `${baseUrl}/${market}/page/settings`;
+        // Build config URL based on current game URL
+        const configUrl = '/interface.php?func=get_config';
         
-        return $.get(settingsUrl).then(html => {
-            const $html = $(html);
+        return $.get(configUrl).then(xml => {
+            const $xml = $(xml);
             const settings = {};
             
-            // Parse settings table
-            $html.find('.vis').find('tr').each(function() {
-                const $row = $(this);
-                const key = $row.find('td').first().text().trim();
-                const value = $row.find('td').last().text().trim();
-                
-                if (key && value) {
-                    // Convert numeric values
-                    if (value.match(/^\d+(\.\d+)?$/)) {
-                        settings[key] = parseFloat(value);
-                    } else if (value.toLowerCase() === 'on' || value.toLowerCase() === 'yes') {
-                        settings[key] = true;
-                    } else if (value.toLowerCase() === 'off' || value.toLowerCase() === 'no') {
-                        settings[key] = false;
+            // Parse XML into flat JSON structure
+            const parseElement = function($element, parentKey = '') {
+                $element.children().each(function() {
+                    const $child = $(this);
+                    const key = parentKey ? `${parentKey}.${$child.prop('nodeName')}` : $child.prop('nodeName');
+                    
+                    if ($child.children().length > 0) {
+                        // Has children, recurse
+                        parseElement($child, key);
                     } else {
-                        settings[key] = value;
+                        // Leaf node, get the value
+                        const value = $child.text().trim();
+                        
+                        // Convert to appropriate type
+                        if (value.match(/^\d+(\.\d+)?$/)) {
+                            settings[key] = parseFloat(value);
+                        } else if (value === '1') {
+                            settings[key] = true;
+                        } else if (value === '0') {
+                            settings[key] = false;
+                        } else {
+                            settings[key] = value;
+                        }
                     }
-                }
-            });
+                });
+            };
+            
+            parseElement($xml.find('config'));
             
             // Cache the settings
             window.TWSDK._worldSettings = settings;
             localStorage.setItem('TWSDK_worldSettings', JSON.stringify(settings));
             localStorage.setItem('TWSDK_worldSettings_timestamp', Date.now());
             
+            console.log('World settings parsed:', settings);
             return settings;
         }).catch(() => {
             // Fallback to localStorage if available and fresh (less than 1 hour old)
@@ -63,8 +71,8 @@ window.TWSDK.Core = (function() {
             
             // Ultimate fallback to game_data
             return {
-                'Game speed': game_data.speed || 1,
-                'Unit speed': game_data.unit_speed || 1
+                'speed': game_data.speed || 1,
+                'unit_speed': game_data.unit_speed || 1
             };
         });
     };
@@ -77,37 +85,45 @@ window.TWSDK.Core = (function() {
     // Get world speed from settings
     const getWorldSpeed = function() {
         const settings = getWorldSettings();
-        return settings['Game speed'] || game_data.speed || 1;
+        return settings['speed'] || game_data.speed || 1;
     };
     
     // Get unit speed from settings
     const getUnitSpeed = function() {
         const settings = getWorldSettings();
-        return settings['Unit speed'] || game_data.unit_speed || 1;
+        return settings['unit_speed'] || game_data.unit_speed || 1;
     };
     
-    // Get morale setting
+    // Get morale setting (0=disabled, 1=points based, 2=time based)
     const getMorale = function() {
         const settings = getWorldSettings();
-        return settings['Morale'] || false;
+        return settings['moral'] || 0;
     };
     
-    // Get night bonus setting
+    // Get night bonus setting (0=disabled, 1=classic, 2=only def bonus)
     const getNightBonus = function() {
         const settings = getWorldSettings();
-        return settings['Night bonus'] || false;
+        return settings['night.active'] || 0;
     };
     
     // Get church setting
     const getChurch = function() {
         const settings = getWorldSettings();
-        return settings['Church'] || false;
+        return settings['game.church'] || false;
     };
     
     // Get watchtower setting
     const getWatchtower = function() {
         const settings = getWorldSettings();
-        return settings['Watchtower'] || false;
+        return settings['game.watchtower'] || false;
+    };
+    
+    // Get sigil bonus setting (returns percentage, e.g., 20 for 20%)
+    const getSigilBonus = function() {
+        const settings = getWorldSettings();
+        // This would need to be added to the config XML parsing if sigils are in world config
+        // For now, we'll return 0 as default since sigils are typically player-specific items
+        return 0;
     };
     
     // Get current server time
@@ -196,6 +212,26 @@ window.TWSDK.Core = (function() {
             return `${secs}s`;
         }
     };
+
+    // Format duration in seconds as hh:mm:ss
+    const formatDurationHMS = function(seconds) {
+        const h = Math.floor(seconds / 3600);
+        const m = Math.floor((seconds % 3600) / 60);
+        const s = seconds % 60;
+        const hStr = String(h).padStart(2, '0');
+        const mStr = String(m).padStart(2, '0');
+        const sStr = String(s).padStart(2, '0');
+        return `${hStr}:${mStr}:${sStr}`;
+    };
+
+    // Format date as DD.MM.YYYY
+    const formatDate = function(timestamp) {
+        const d = new Date(timestamp);
+        const day = String(d.getDate()).padStart(2, '0');
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const year = d.getFullYear();
+        return `${day}.${month}.${year}`;
+    };
     
     // Initialize the SDK
     const init = function() {
@@ -228,10 +264,13 @@ window.TWSDK.Core = (function() {
         getNightBonus,
         getChurch,
         getWatchtower,
+        getSigilBonus,
         getCurrentServerTime,
         timestampFromString,
         formatDateTime,
-        formatDuration
+        formatDuration,
+        formatDurationHMS,
+        formatDate
     };
 })();
 
@@ -265,12 +304,15 @@ window.TWSDK.Coords = (function() {
     };
     
     // Calculate travel time between coordinates
-    const travelTime = function(origin, target, unitSpeed, worldSpeed = 1, unitModifier = 1) {
+    const travelTime = function(origin, target, unitSpeed, worldSpeed = 1, unitModifier = 1, sigilBonus = 0) {
         const dist = distance(origin, target);
         if (!dist) return null;
         
-        // Travel time in minutes = distance * unit speed / (world speed * unit speed modifier)
-        const timeInMinutes = (dist * unitSpeed) / (worldSpeed * unitModifier);
+        // Calculate sigil ratio (sigil reduces travel time)
+        const sigilRatio = 1 + (sigilBonus / 100);
+        
+        // Travel time in minutes = (distance * unit speed) / (world speed * unit speed modifier * sigil ratio)
+        const timeInMinutes = (dist * unitSpeed) / (worldSpeed * unitModifier * sigilRatio);
         
         // Return in seconds
         return Math.round(timeInMinutes * 60);
