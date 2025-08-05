@@ -3,7 +3,6 @@ Example: python attackTimeCalc.py --arrival-time 08:05:00 --travel-duration 16:0
 
 '''
 
-
 import argparse
 from datetime import datetime, timedelta
 import sys
@@ -48,7 +47,7 @@ def main():
     parser.add_argument(
         "--convert-to-local",
         action="store_true",
-        help="Convert calculated server send time to your local time"
+        help="Convert calculated server send time to your local time (with AM/PM format)"
     )
 
     args = parser.parse_args()
@@ -77,7 +76,7 @@ def main():
 
     if args.convert_to_local:
         local_send_time = send_time.astimezone(local_tz)
-        print("Send time (local time): ", local_send_time.strftime("%Y-%m-%d %H:%M:%S %Z"))
+        print("Send time (local time): ", local_send_time.strftime("%Y-%m-%d %I:%M:%S %p %Z"))
 
 if __name__ == "__main__":
     main()
