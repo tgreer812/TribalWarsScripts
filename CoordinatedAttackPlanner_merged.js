@@ -1,5 +1,5 @@
 ﻿// Coordinated Attack Planner - Merged Build
-// Generated on: 2025-08-05 22:40:13
+// Generated on: 2025-08-05 22:42:33
 // This file is auto-generated. Do not edit directly.
 
 // ==================================================
@@ -697,7 +697,7 @@ window.CAP.UI = (function() {
 
             // Disable inputs while checking
             document.getElementById('tribe-input').disabled = true;
-            const addBtn = document.querySelector('#AddTribe .cap-button:first-of-type');
+            const addBtn = document.querySelector('#popup_box_AddTribe .cap-button:first-of-type');
             addBtn.disabled = true;
             addBtn.textContent = 'Checking...';
 

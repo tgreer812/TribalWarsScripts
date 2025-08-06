@@ -64,7 +64,7 @@
 
             // Disable inputs while checking
             document.getElementById('tribe-input').disabled = true;
-            const addBtn = document.querySelector('#AddTribe .cap-button:first-of-type');
+            const addBtn = document.querySelector('#popup_box_AddTribe .cap-button:first-of-type');
             addBtn.disabled = true;
             addBtn.textContent = 'Checking...';
 
