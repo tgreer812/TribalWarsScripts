@@ -109,16 +109,37 @@ window.CAP.Validation = (function() {
                     const $html = $(html);
                     const members = [];
                     
-                    // Look for member list in the tribe info page
-                    $html.find('table').each(function() {
+                    // Look for the specific member table with headers: Name, Rank, Points, Global Rank, Villages
+                    $html.find('table.vis').each(function() {
                         const $table = $(this);
-                        // Find table with player names (look for links to player profiles)
-                        $table.find('a[href*="info_player"]').each(function() {
-                            const playerName = $(this).text().trim();
-                            if (playerName && !members.includes(playerName)) {
-                                members.push(playerName);
+                        const $headers = $table.find('th');
+                        
+                        // Check if this is the member table by looking for specific headers
+                        let isMemberTable = false;
+                        $headers.each(function() {
+                            const headerText = $(this).text().trim().toLowerCase();
+                            if (headerText === 'name' || headerText === 'rank' || headerText === 'points') {
+                                isMemberTable = true;
+                                return false; // break
                             }
                         });
+                        
+                        if (isMemberTable) {
+                            // Process each row in the member table (skip header row)
+                            $table.find('tr').slice(1).each(function() {
+                                const $row = $(this);
+                                const $firstCell = $row.find('td').first();
+                                const $playerLink = $firstCell.find('a[href*="info_player"]').first();
+                                
+                                if ($playerLink.length > 0) {
+                                    const playerName = $playerLink.text().trim();
+                                    if (playerName && !members.includes(playerName)) {
+                                        members.push(playerName);
+                                    }
+                                }
+                            });
+                            return false; // break out of table loop once we found the member table
+                        }
                     });
 
                     if (members.length === 0) {
