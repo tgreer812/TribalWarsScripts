@@ -1,325 +1,209 @@
 (function() {
-    // Utility to create modal
-    function createModal() {
-        // Remove any existing modal
-        const oldModal = document.getElementById('tw-cap-modal');
-        if (oldModal) oldModal.remove();
+    // Global namespace for the application
+    window.CAP = window.CAP || {};
 
-        const styles = `
-            <style>
-                #popup_box_CoordinatedAttackPlanner {
-                    width: 500px;
-                    position: relative;
-                }
-                .cap-content {
-                    padding: 20px;
-                    background: url('graphic/index/main_bg.jpg') 100% 0% #E3D5B3;
-                    border: 2px solid #7D510F;
-                    border-radius: 8px;
-                }
-                .cap-title {
-                    color: #7D510F;
-                    font-weight: bold;
-                    margin-bottom: 15px;
-                    text-align: center;
-                    font-size: 18px;
-                }
-                .cap-description {
-                    text-align: center;
-                    margin-bottom: 20px;
-                    color: #5D4037;
-                    font-size: 14px;
-                }
-                .cap-button-container {
-                    display: flex;
-                    justify-content: center;
-                    gap: 15px;
-                    margin-top: 15px;
-                }
-                .cap-button {
-                    background: linear-gradient(to bottom, #f4e4bc 0%, #c9b576 100%);
-                    border: 2px solid #7D510F;
-                    border-radius: 4px;
-                    color: #5D4037;
-                    font-weight: bold;
-                    padding: 12px 24px;
-                    cursor: pointer;
-                    font-size: 14px;
-                    text-shadow: 1px 1px 1px rgba(255,255,255,0.5);
-                    min-width: 140px;
-                    box-shadow: 1px 1px 3px rgba(0,0,0,0.3);
-                }
-                .cap-button:hover {
-                    background: linear-gradient(to bottom, #f8e8c0 0%, #d4c07e 100%);
-                    border-color: #8B5A0F;
-                }
-                .cap-button:active {
-                    background: linear-gradient(to bottom, #c9b576 0%, #f4e4bc 100%);
-                    box-shadow: inset 1px 1px 3px rgba(0,0,0,0.3);
-                }
-            </style>
-        `;
+    // Main application controller
+    window.CAP.Main = (function() {
 
-        const html = `
-            ${styles}
-            <div class="cap-content">
-                <h2 class="cap-title">Coordinated Attack Planner</h2>
-                <p class="cap-description">What would you like to do?</p>
-                <div class="cap-button-container">
-                    <button class="cap-button" id="cap-create-btn">Create a Plan</button>
-                    <button class="cap-button" id="cap-import-btn">Import a Plan</button>
-                </div>
-            </div>
-        `;
+        // Add a target player by name
+        const addTargetPlayer = () => {
+            const input = document.getElementById('cap-player-input');
+            const playerName = input.value.trim();
+            
+            if (!playerName) {
+                UI.ErrorMessage('Please enter a player name');
+                return;
+            }
 
-        Dialog.show('CoordinatedAttackPlanner', html);
+            if (window.CAP.State.getTargetPlayers().has(playerName)) {
+                UI.ErrorMessage('Player already added');
+                return;
+            }
 
-        // Bind event handlers
-        document.getElementById('cap-create-btn').onclick = function() {
-            Dialog.close();
-            showPlanDesignPage();
+            // Show loading indicator
+            input.disabled = true;
+            document.getElementById('cap-add-player').disabled = true;
+            document.getElementById('cap-add-player').textContent = 'Checking...';
+
+            // Validate player exists
+            window.CAP.Validation.validatePlayer(playerName)
+                .then(() => {
+                    // Add to our state
+                    window.CAP.State.addTargetPlayer(playerName);
+                    
+                    // Clear input
+                    input.value = '';
+                    
+                    // Update display
+                    window.CAP.UI.updateTargetPlayersDisplay();
+                    
+                    // Store in recent targets
+                    window.CAP.State.addToRecentTargets(playerName);
+                    
+                    UI.SuccessMessage(`Player "${playerName}" added successfully`);
+                })
+                .catch(error => {
+                    UI.ErrorMessage(error);
+                })
+                .finally(() => {
+                    // Re-enable controls
+                    input.disabled = false;
+                    document.getElementById('cap-add-player').disabled = false;
+                    document.getElementById('cap-add-player').textContent = 'Add';
+                });
         };
 
-        document.getElementById('cap-import-btn').onclick = function() {
-            Dialog.close();
-            alert('Import mode not yet implemented.');
-        };
-    }
+        // Add tribe members with validation
+        const addTribeMembers = () => {
+            const tribeTag = document.getElementById('tribe-input').value.trim();
+            
+            if (!tribeTag) {
+                UI.ErrorMessage('Please enter a tribe tag');
+                return;
+            }
 
-    // Plan Design Page
-    function showPlanDesignPage() {
-        const styles = `
-            <style>
-                #popup_box_CoordinatedAttackPlanner {
-                    width: 800px;
-                    position: relative;
-                }
-                .cap-content {
-                    padding: 20px;
-                    background: url('graphic/index/main_bg.jpg') 100% 0% #E3D5B3;
-                    border: 2px solid #7D510F;
-                    border-radius: 8px;
-                }
-                .cap-section {
-                    margin-bottom: 15px;
-                    padding: 10px;
-                    background: rgba(255,255,255,0.1);
-                    border: 1px solid #7D510F;
-                    border-radius: 4px;
-                }
-                .cap-section h3 {
-                    color: #7D510F;
-                    margin: 0 0 10px 0;
-                    font-size: 16px;
-                }
-                .cap-form-group {
-                    margin: 10px 0;
-                }
-                .cap-form-group label {
-                    display: inline-block;
-                    width: 120px;
-                    font-weight: bold;
-                    color: #5D4037;
-                }
-                .cap-form-group select, .cap-form-group input {
-                    padding: 4px;
-                    border: 1px solid #7D510F;
-                    border-radius: 2px;
-                }
-                .cap-village-list {
-                    max-height: 150px;
-                    overflow-y: auto;
-                    border: 1px solid #7D510F;
-                    background: rgba(255,255,255,0.8);
-                    padding: 5px;
-                }
-                .cap-attack-table {
-                    width: 100%;
-                    border-collapse: collapse;
-                    margin-top: 10px;
-                }
-                .cap-attack-table th {
-                    background: #c1a264;
-                    padding: 5px;
-                    border: 1px solid #7D510F;
-                    color: #5D4037;
-                }
-                .cap-attack-table td {
-                    padding: 5px;
-                    border: 1px solid #7D510F;
-                    background: rgba(255,255,255,0.8);
-                }
-                .cap-button {
-                    background: linear-gradient(to bottom, #f4e4bc 0%, #c9b576 100%);
-                    border: 2px solid #7D510F;
-                    border-radius: 4px;
-                    color: #5D4037;
-                    font-weight: bold;
-                    padding: 8px 16px;
-                    cursor: pointer;
-                    font-size: 12px;
-                    text-shadow: 1px 1px 1px rgba(255,255,255,0.5);
-                    margin: 2px;
-                }
-                .cap-button:hover {
-                    background: linear-gradient(to bottom, #f8e8c0 0%, #d4c07e 100%);
-                    border-color: #8B5A0F;
-                }
-                .cap-button-small {
-                    padding: 4px 8px;
-                    font-size: 11px;
-                }
-                .cap-action-buttons {
-                    text-align: center;
-                    margin-top: 20px;
-                }
-            </style>
-        `;
+            // Disable inputs while checking
+            document.getElementById('tribe-input').disabled = true;
+            const addBtn = document.querySelector('#AddTribe .cap-button:first-of-type');
+            addBtn.disabled = true;
+            addBtn.textContent = 'Checking...';
 
-        const html = `
-            ${styles}
-            <div class="cap-content">
-                <h2 class="cap-title">Create Attack Plan</h2>
-                
-                <!-- Player Selection -->
-                <div class="cap-section">
-                    <h3>1. Select Target Player</h3>
-                    <div class="cap-form-group">
-                        <label>Player Name:</label>
-                        <select id="cap-target-player">
-                            <option value="">Loading players...</option>
-                        </select>
-                    </div>
-                </div>
-
-                <!-- Attacking Villages -->
-                <div class="cap-section">
-                    <h3>2. Select Attacking Villages</h3>
-                    <div class="cap-form-group">
-                        <button class="cap-button" id="cap-select-all-attackers">Select All</button>
-                        <button class="cap-button" id="cap-clear-attackers">Clear All</button>
-                    </div>
-                    <div class="cap-village-list" id="cap-attacker-villages">
-                        Loading villages...
-                    </div>
-                </div>
-
-                <!-- Target Villages -->
-                <div class="cap-section">
-                    <h3>3. Select Target Villages</h3>
-                    <div class="cap-form-group">
-                        <label>Add by Coords:</label>
-                        <input type="text" id="cap-target-coords" placeholder="XXX|YYY,XXX|YYY">
-                        <button class="cap-button cap-button-small" id="cap-add-coords">Add</button>
-                    </div>
-                    <div class="cap-form-group">
-                        <label>Target Player:</label>
-                        <select id="cap-target-player-villages">
-                            <option value="">Select a player...</option>
-                        </select>
-                        <button class="cap-button cap-button-small" id="cap-add-player-villages">Add All Villages</button>
-                    </div>
-                    <div class="cap-village-list" id="cap-target-villages">
-                        No targets selected
-                    </div>
-                </div>
-
-                <!-- Attack Configuration -->
-                <div class="cap-section">
-                    <h3>4. Configure Attacks</h3>
-                    <div class="cap-form-group">
-                        <button class="cap-button" id="cap-add-attack">Add Attack</button>
-                        <button class="cap-button" id="cap-mass-add">Mass Add (All to All)</button>
-                        <button class="cap-button" id="cap-clear-attacks">Clear All</button>
-                    </div>
-                    <table class="cap-attack-table">
-                        <thead>
-                            <tr>
-                                <th>Attacking Village</th>
-                                <th>Target Village</th>
-                                <th>Landing Time</th>
-                                <th>Notes</th>
-                                <th>Actions</th>
-                            </tr>
-                        </thead>
-                        <tbody id="cap-attack-list">
-                            <tr>
-                                <td colspan="5" style="text-align: center; color: #666;">No attacks configured</td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </div>
-
-                <!-- Action Buttons -->
-                <div class="cap-action-buttons">
-                    <button class="cap-button" id="cap-back">← Back</button>
-                    <button class="cap-button" id="cap-preview">Preview Plan</button>
-                    <button class="cap-button" id="cap-export">Export Plan</button>
-                </div>
-            </div>
-        `;
-
-        Dialog.show('CoordinatedAttackPlanner', html);
-        bindPlanDesignEvents();
-        loadPlayerData();
-    }
-
-    // Bind events for plan design page
-    function bindPlanDesignEvents() {
-        // Back button
-        document.getElementById('cap-back').onclick = function() {
-            Dialog.close();
-            createModal();
+            window.CAP.Validation.validateTribe(tribeTag)
+                .then(members => {
+                    Dialog.close();
+                    
+                    let addedCount = 0;
+                    members.forEach(playerName => {
+                        if (!window.CAP.State.getTargetPlayers().has(playerName)) {
+                            window.CAP.State.addTargetPlayer(playerName);
+                            window.CAP.State.addToRecentTargets(playerName);
+                            addedCount++;
+                        }
+                    });
+                    
+                    window.CAP.UI.updateTargetPlayersDisplay();
+                    UI.SuccessMessage(`Added ${addedCount} players from tribe ${tribeTag}`);
+                })
+                .catch(error => {
+                    UI.ErrorMessage(error);
+                    // Re-enable inputs on error
+                    document.getElementById('tribe-input').disabled = false;
+                    addBtn.disabled = false;
+                    addBtn.textContent = 'Add Tribe';
+                });
         };
 
-        // Placeholder event handlers
-        document.getElementById('cap-select-all-attackers').onclick = function() {
-            alert('Select all attackers - not implemented');
+        // Remove a target player
+        const removeTargetPlayer = (playerName) => {
+            window.CAP.State.removeTargetPlayer(playerName);
+            window.CAP.UI.updateTargetPlayersDisplay();
         };
 
-        document.getElementById('cap-clear-attackers').onclick = function() {
-            alert('Clear attackers - not implemented');
+        // Load player data (placeholder)
+        const loadPlayerData = () => {
+            // Placeholder implementation
+            console.log('Loading player data...');
         };
 
-        document.getElementById('cap-add-coords').onclick = function() {
-            alert('Add coordinates - not implemented');
+        // Bind events for plan design page
+        const bindPlanDesignEvents = () => {
+            // Back button
+            document.getElementById('cap-back').onclick = function() {
+                Dialog.close();
+                window.CAP.UI.createModal();
+                bindInitialEvents();
+            };
+
+            // Player input - Enter key support
+            document.getElementById('cap-player-input').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    addTargetPlayer();
+                }
+            });
+
+            // Add player button
+            document.getElementById('cap-add-player').onclick = addTargetPlayer;
+
+            // Add tribe button
+            document.getElementById('cap-add-tribe').onclick = function() {
+                window.CAP.UI.showAddTribeDialog();
+            };
+
+            // Placeholder event handlers for other buttons
+            document.getElementById('cap-select-all-attackers').onclick = function() {
+                alert('Select all attackers - not implemented');
+            };
+
+            document.getElementById('cap-clear-attackers').onclick = function() {
+                alert('Clear attackers - not implemented');
+            };
+
+            document.getElementById('cap-add-coords').onclick = function() {
+                alert('Add coordinates - not implemented');
+            };
+
+            document.getElementById('cap-add-all-villages').onclick = function() {
+                const targetPlayers = window.CAP.State.getTargetPlayers();
+                if (targetPlayers.size === 0) {
+                    alert('Please select target players first');
+                    return;
+                }
+                alert('Add all villages from selected players - not implemented');
+            };
+
+            document.getElementById('cap-add-attack').onclick = function() {
+                alert('Add attack - not implemented');
+            };
+
+            document.getElementById('cap-mass-add').onclick = function() {
+                alert('Mass add - not implemented');
+            };
+
+            document.getElementById('cap-clear-attacks').onclick = function() {
+                alert('Clear attacks - not implemented');
+            };
+
+            document.getElementById('cap-preview').onclick = function() {
+                alert('Preview plan - not implemented');
+            };
+
+            document.getElementById('cap-export').onclick = function() {
+                alert('Export plan - not implemented');
+            };
         };
 
-        document.getElementById('cap-add-player-villages').onclick = function() {
-            alert('Add player villages - not implemented');
+        // Bind events for initial modal
+        const bindInitialEvents = () => {
+            // Bind event handlers for initial modal
+            document.getElementById('cap-create-btn').onclick = function() {
+                Dialog.close();
+                window.CAP.UI.showPlanDesignPage();
+                bindPlanDesignEvents();
+                loadPlayerData();
+            };
+
+            document.getElementById('cap-import-btn').onclick = function() {
+                Dialog.close();
+                alert('Import mode not yet implemented.');
+            };
         };
 
-        document.getElementById('cap-add-attack').onclick = function() {
-            alert('Add attack - not implemented');
+        // Initialize the application
+        const init = () => {
+            window.CAP.UI.createModal();
+            bindInitialEvents();
         };
 
-        document.getElementById('cap-mass-add').onclick = function() {
-            alert('Mass add - not implemented');
-        };
+        // Export functions to global scope for onclick handlers
+        window.CAP.removeTargetPlayer = removeTargetPlayer;
+        window.CAP.addTribeMembers = addTribeMembers;
 
-        document.getElementById('cap-clear-attacks').onclick = function() {
-            alert('Clear attacks - not implemented');
+        return {
+            init
         };
-
-        document.getElementById('cap-preview').onclick = function() {
-            alert('Preview plan - not implemented');
-        };
-
-        document.getElementById('cap-export').onclick = function() {
-            alert('Export plan - not implemented');
-        };
-    }
-
-    // Load player and village data
-    function loadPlayerData() {
-        // Placeholder - load current player's villages for attacking
-        document.getElementById('cap-attacker-villages').innerHTML = 'Loading your villages...';
-        
-        // Placeholder - populate player dropdown
-        document.getElementById('cap-target-player').innerHTML = '<option value="">Select target player...</option>';
-        document.getElementById('cap-target-player-villages').innerHTML = '<option value="">Select target player...</option>';
-    }
+    })();
 
     // Run on script load
-    createModal();
+    window.CAP.Main.init();
 })();

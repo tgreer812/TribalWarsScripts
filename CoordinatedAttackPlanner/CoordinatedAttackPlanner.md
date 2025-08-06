@@ -6,6 +6,31 @@ This script will help Tribal Wars players coordinate attacks from multiple villa
 
 ---
 
+## File Organization & Architecture
+
+As the codebase grows, the script will be organized into multiple modules for maintainability and clarity:
+
+### Core Files Structure
+1. **CoordinatedAttackPlanner.js** - Main entry point and orchestration
+2. **cap-ui.js** - All UI components, styling, and DOM manipulation
+3. **cap-validation.js** - Player and tribe validation logic
+4. **cap-state.js** - State management and data structures
+5. **cap-export.js** - Export/import functionality (when implemented)
+6. **cap-execution.js** - Plan execution logic (when implemented)
+
+### Module Loading Strategy
+- **Main file** acts as orchestrator and loads other modules dynamically
+- **No external dependencies** beyond what's already available in Tribal Wars
+- **Error handling** for failed module loads with graceful degradation
+
+### Benefits of Modular Approach
+- **Separation of concerns** - UI separate from business logic
+- **Maintainability** - Easier to find and modify specific functionality
+- **Testability** - Individual modules can be developed/tested independently
+- **Scalability** - Easy to add new features without touching existing code
+
+---
+
 ## Core Features
 
 ### 1. **Target & Attack Selection**
@@ -162,6 +187,35 @@ Operations (ops) may span hours or days, making it impractical to require users 
   - Invalid imports (bad base64 or JSON) show a clear red error popup.
 - **No Mobile Support:**  
   - Mobile is not supported or a design concern.
+- **Modular Architecture:**  
+  - Code split across multiple files for maintainability, loaded dynamically by main script.
+
+---
+
+## Development Phases
+
+### Phase 1: Core Infrastructure
+- [x] Main entry point and UI framework
+- [x] Target player selection with validation
+- [x] Basic tribe functionality
+- [ ] **Next:** Split into modular files (cap-ui.js, cap-validation.js, cap-state.js)
+
+### Phase 2: Plan Creation
+- [ ] Village selection (attacking and target)
+- [ ] Attack configuration table
+- [ ] Landing time specification
+- [ ] Export functionality
+
+### Phase 3: Plan Execution
+- [ ] Import functionality
+- [ ] Template assignment screen
+- [ ] Execution screen with countdowns
+- [ ] Launch buttons and attack sending
+
+### Phase 4: Polish & Features
+- [ ] Error handling improvements
+- [ ] Performance optimizations
+- [ ] Additional customization options
 
 ---
 
@@ -179,17 +233,20 @@ Operations (ops) may span hours or days, making it impractical to require users 
   - **Answer:** No conversion or help. All times are server time only.
 - **Should the planning script and user script be separate?**  
   - **Answer:** No. The initial screen should give the user an option to create or import a plan, keeping the workflow unified and simple.
+- **How should we organize the growing codebase?**
+  - **Answer:** Split into focused modules (UI, validation, state, etc.) loaded dynamically by the main file.
 
 ---
 
 ## Next Steps
 
-1. Review and iterate on this spec.
-2. Mock up UI wireframes.
-3. Define data structures for export/import.
-4. Plan module structure and integration with TWSDK.
-5. Begin implementation.
+1. ✅ Review and iterate on this spec.
+2. ✅ Mock up UI wireframes.
+3. ✅ Define data structures for export/import.
+4. ✅ Plan module structure and integration with TWSDK.
+5. ✅ Begin implementation.
+6. **🔄 Current:** Split existing code into modular files for better maintainability.
 
 ---
 
-*Feedback and suggestions
+*Feedback and suggestions welcome.*
