@@ -192,8 +192,122 @@ window.CAP.Validation = (function() {
         });
     };
 
+    // Get player's villages by searching their profile
+    const getPlayerVillages = (playerName) => {
+        return new Promise((resolve, reject) => {
+            // First validate the player exists and get their ID
+            validatePlayer(playerName)
+                .then(() => {
+                    // Search for the player to get their ID
+                    return $.get('/game.php?village=' + game_data.village.id + '&screen=ranking&mode=player&name=' + encodeURIComponent(playerName));
+                })
+                .then(html => {
+                    const $html = $(html);
+                    let playerId = null;
+                    
+                    // Find the player's ID from the ranking table
+                    $html.find('#player_ranking_table tr').each(function() {
+                        const $row = $(this);
+                        const $nameCell = $row.find('td:nth-child(2)');
+                        if ($nameCell.length > 0) {
+                            const foundName = $nameCell.text().trim();
+                            if (foundName.toLowerCase() === playerName.toLowerCase()) {
+                                const $link = $nameCell.find('a[href*="info_player"]').first();
+                                if ($link.length > 0) {
+                                    const href = $link.attr('href');
+                                    const match = href.match(/id=(\d+)/);
+                                    if (match) {
+                                        playerId = match[1];
+                                    }
+                                }
+                                return false; // break
+                            }
+                        }
+                    });
+                    
+                    if (!playerId) {
+                        throw new Error(`Could not find player ID for "${playerName}"`);
+                    }
+                    
+                    // Now get the player's village info
+                    return $.get('/game.php?village=' + game_data.village.id + '&screen=info_player&id=' + playerId);
+                })
+                .then(html => {
+                    const $html = $(html);
+                    const villages = {};
+                    
+                    // Look for villages table in player info
+                    $html.find('table').each(function() {
+                        const $table = $(this);
+                        const $headers = $table.find('th');
+                        
+                        // Check if this is the villages table
+                        let isVillageTable = false;
+                        $headers.each(function() {
+                            const headerText = $(this).text().trim().toLowerCase();
+                            if (headerText.includes('village') || headerText.includes('coordinates') || headerText.includes('points')) {
+                                isVillageTable = true;
+                                return false; // break
+                            }
+                        });
+                        
+                        if (isVillageTable) {
+                            // Process village rows
+                            $table.find('tr').slice(1).each(function() {
+                                const $row = $(this);
+                                const $cells = $row.find('td');
+                                
+                                if ($cells.length >= 2) {
+                                    // First cell usually contains village name
+                                    const villageName = $cells.eq(0).text().trim();
+                                    
+                                    // Look for coordinates in any cell
+                                    let villageCoords = null;
+                                    $cells.each(function() {
+                                        const cellText = $(this).text().trim();
+                                        const coordMatch = cellText.match(/(\d{1,3})\|(\d{1,3})/);
+                                        if (coordMatch) {
+                                            villageCoords = coordMatch[0];
+                                            return false; // break
+                                        }
+                                    });
+                                    
+                                    if (villageName && villageCoords && villageName !== 'Village') {
+                                        // Generate a village ID from coordinates for consistency
+                                        const villageId = `${villageCoords.replace('|', '_')}_${playerName}`;
+                                        
+                                        villages[villageId] = {
+                                            id: villageId,
+                                            name: villageName,
+                                            coords: villageCoords,
+                                            player: playerName
+                                        };
+                                    }
+                                }
+                            });
+                            return false; // break out of table loop
+                        }
+                    });
+                    
+                    if (Object.keys(villages).length === 0) {
+                        reject(`No villages found for player "${playerName}". The player may have no villages or privacy settings may prevent access.`);
+                    } else {
+                        resolve(villages);
+                    }
+                })
+                .catch(error => {
+                    if (typeof error === 'string') {
+                        reject(error);
+                    } else {
+                        reject(`Failed to fetch villages for player "${playerName}". ${error.message || 'Unknown error'}`);
+                    }
+                });
+        });
+    };
+
     return {
         validatePlayer,
-        validateTribe
+        validateTribe,
+        getPlayerVillages
     };
 })();

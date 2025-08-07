@@ -1,5 +1,5 @@
 ﻿// Coordinated Attack Planner - Merged Build
-// Generated on: 2025-08-05 22:54:26
+// Generated on: 2025-08-06 20:47:51
 // This file is auto-generated. Do not edit directly.
 
 // ==================================================
@@ -15,21 +15,27 @@ window.CAP.State = (function() {
     // Application state
     let targetPlayers = new Set(); // Store selected target player names
     let targetVillages = new Set(); // Store selected target villages
+    let attackingPlayer = null; // Store the attacking player name
     let attackingVillages = new Set(); // Store selected attacking villages
+    let playerVillages = {}; // Store player's village data {playerId: {villageId: {name, coords, ...}}}
     let attacks = []; // Store configured attacks
     let currentPlan = null; // Current plan being worked on
 
     // Getters
     const getTargetPlayers = () => targetPlayers;
     const getTargetVillages = () => targetVillages;
+    const getAttackingPlayer = () => attackingPlayer;
     const getAttackingVillages = () => attackingVillages;
+    const getPlayerVillages = (playerName) => playerVillages[playerName] || {};
     const getAttacks = () => attacks;
     const getCurrentPlan = () => currentPlan;
 
     // Setters
     const setTargetPlayers = (players) => { targetPlayers = new Set(players); };
     const setTargetVillages = (villages) => { targetVillages = new Set(villages); };
+    const setAttackingPlayer = (playerName) => { attackingPlayer = playerName; };
     const setAttackingVillages = (villages) => { attackingVillages = new Set(villages); };
+    const setPlayerVillages = (playerName, villages) => { playerVillages[playerName] = villages; };
     const setAttacks = (newAttacks) => { attacks = [...newAttacks]; };
     const setCurrentPlan = (plan) => { currentPlan = plan; };
 
@@ -42,10 +48,20 @@ window.CAP.State = (function() {
         targetPlayers.delete(playerName);
     };
 
+    const addAttackingVillage = (villageId) => {
+        attackingVillages.add(villageId);
+    };
+
+    const removeAttackingVillage = (villageId) => {
+        attackingVillages.delete(villageId);
+    };
+
     const clearAll = () => {
         targetPlayers.clear();
         targetVillages.clear();
+        attackingPlayer = null;
         attackingVillages.clear();
+        playerVillages = {};
         attacks.length = 0;
         currentPlan = null;
     };
@@ -75,20 +91,26 @@ window.CAP.State = (function() {
         // Getters
         getTargetPlayers,
         getTargetVillages,
+        getAttackingPlayer,
         getAttackingVillages,
+        getPlayerVillages,
         getAttacks,
         getCurrentPlan,
         
         // Setters
         setTargetPlayers,
         setTargetVillages,
+        setAttackingPlayer,
         setAttackingVillages,
+        setPlayerVillages,
         setAttacks,
         setCurrentPlan,
         
         // Utilities
         addTargetPlayer,
         removeTargetPlayer,
+        addAttackingVillage,
+        removeAttackingVillage,
         clearAll,
         getRecentTargets,
         addToRecentTargets
@@ -293,9 +315,123 @@ window.CAP.Validation = (function() {
         });
     };
 
+    // Get player's villages by searching their profile
+    const getPlayerVillages = (playerName) => {
+        return new Promise((resolve, reject) => {
+            // First validate the player exists and get their ID
+            validatePlayer(playerName)
+                .then(() => {
+                    // Search for the player to get their ID
+                    return $.get('/game.php?village=' + game_data.village.id + '&screen=ranking&mode=player&name=' + encodeURIComponent(playerName));
+                })
+                .then(html => {
+                    const $html = $(html);
+                    let playerId = null;
+                    
+                    // Find the player's ID from the ranking table
+                    $html.find('#player_ranking_table tr').each(function() {
+                        const $row = $(this);
+                        const $nameCell = $row.find('td:nth-child(2)');
+                        if ($nameCell.length > 0) {
+                            const foundName = $nameCell.text().trim();
+                            if (foundName.toLowerCase() === playerName.toLowerCase()) {
+                                const $link = $nameCell.find('a[href*="info_player"]').first();
+                                if ($link.length > 0) {
+                                    const href = $link.attr('href');
+                                    const match = href.match(/id=(\d+)/);
+                                    if (match) {
+                                        playerId = match[1];
+                                    }
+                                }
+                                return false; // break
+                            }
+                        }
+                    });
+                    
+                    if (!playerId) {
+                        throw new Error(`Could not find player ID for "${playerName}"`);
+                    }
+                    
+                    // Now get the player's village info
+                    return $.get('/game.php?village=' + game_data.village.id + '&screen=info_player&id=' + playerId);
+                })
+                .then(html => {
+                    const $html = $(html);
+                    const villages = {};
+                    
+                    // Look for villages table in player info
+                    $html.find('table').each(function() {
+                        const $table = $(this);
+                        const $headers = $table.find('th');
+                        
+                        // Check if this is the villages table
+                        let isVillageTable = false;
+                        $headers.each(function() {
+                            const headerText = $(this).text().trim().toLowerCase();
+                            if (headerText.includes('village') || headerText.includes('coordinates') || headerText.includes('points')) {
+                                isVillageTable = true;
+                                return false; // break
+                            }
+                        });
+                        
+                        if (isVillageTable) {
+                            // Process village rows
+                            $table.find('tr').slice(1).each(function() {
+                                const $row = $(this);
+                                const $cells = $row.find('td');
+                                
+                                if ($cells.length >= 2) {
+                                    // First cell usually contains village name
+                                    const villageName = $cells.eq(0).text().trim();
+                                    
+                                    // Look for coordinates in any cell
+                                    let villageCoords = null;
+                                    $cells.each(function() {
+                                        const cellText = $(this).text().trim();
+                                        const coordMatch = cellText.match(/(\d{1,3})\|(\d{1,3})/);
+                                        if (coordMatch) {
+                                            villageCoords = coordMatch[0];
+                                            return false; // break
+                                        }
+                                    });
+                                    
+                                    if (villageName && villageCoords && villageName !== 'Village') {
+                                        // Generate a village ID from coordinates for consistency
+                                        const villageId = `${villageCoords.replace('|', '_')}_${playerName}`;
+                                        
+                                        villages[villageId] = {
+                                            id: villageId,
+                                            name: villageName,
+                                            coords: villageCoords,
+                                            player: playerName
+                                        };
+                                    }
+                                }
+                            });
+                            return false; // break out of table loop
+                        }
+                    });
+                    
+                    if (Object.keys(villages).length === 0) {
+                        reject(`No villages found for player "${playerName}". The player may have no villages or privacy settings may prevent access.`);
+                    } else {
+                        resolve(villages);
+                    }
+                })
+                .catch(error => {
+                    if (typeof error === 'string') {
+                        reject(error);
+                    } else {
+                        reject(`Failed to fetch villages for player "${playerName}". ${error.message || 'Unknown error'}`);
+                    }
+                });
+        });
+    };
+
     return {
         validatePlayer,
-        validateTribe
+        validateTribe,
+        getPlayerVillages
     };
 })();
 
@@ -462,6 +598,21 @@ window.CAP.UI = (function() {
                     background: rgba(255,255,255,0.8);
                     padding: 5px;
                 }
+                .cap-village-checkbox {
+                    margin: 2px 0;
+                    padding: 2px 5px;
+                    border-bottom: 1px solid #ddd;
+                }
+                .cap-village-checkbox:last-child {
+                    border-bottom: none;
+                }
+                .cap-village-checkbox input {
+                    margin-right: 8px;
+                }
+                .cap-attacking-player {
+                    background: #e6ffe6;
+                    border: 2px solid #4CAF50;
+                }
                 .cap-attack-table {
                     width: 100%;
                     border-collapse: collapse;
@@ -502,6 +653,10 @@ window.CAP.UI = (function() {
                     text-align: center;
                     margin-top: 20px;
                 }
+                .cap-disabled {
+                    opacity: 0.5;
+                    pointer-events: none;
+                }
             </style>
         `;
 
@@ -510,9 +665,37 @@ window.CAP.UI = (function() {
             <div class="cap-content">
                 <h2 class="cap-title">Create Attack Plan</h2>
                 
+                <!-- Attacking Player Selection -->
+                <div class="cap-section cap-attacking-player">
+                    <h3>1. Select Attacking Player (Plan Recipient)</h3>
+                    <div class="cap-form-group">
+                        <label>Player Name:</label>
+                        <div class="cap-input-with-buttons">
+                            <input type="text" id="cap-attacking-player-input" placeholder="Enter player name..." autocomplete="off">
+                            <button class="cap-button cap-button-small" id="cap-set-attacking-player">Set Player</button>
+                        </div>
+                    </div>
+                    <div id="cap-attacking-player-display" style="display: none;">
+                        <strong>Creating plan for: <span id="cap-attacking-player-name"></span></strong>
+                        <button class="cap-button cap-button-small" id="cap-change-attacking-player" style="margin-left: 10px;">Change Player</button>
+                    </div>
+                </div>
+
+                <!-- Attacking Villages -->
+                <div class="cap-section cap-disabled" id="cap-attacking-villages-section">
+                    <h3>2. Select Attacking Villages</h3>
+                    <div class="cap-form-group">
+                        <button class="cap-button" id="cap-select-all-attackers">Select All</button>
+                        <button class="cap-button" id="cap-clear-attackers">Clear All</button>
+                    </div>
+                    <div class="cap-village-list" id="cap-attacker-villages">
+                        Please select an attacking player first...
+                    </div>
+                </div>
+
                 <!-- Target Player Selection -->
-                <div class="cap-section">
-                    <h3>1. Select Target Players</h3>
+                <div class="cap-section cap-disabled" id="cap-target-players-section">
+                    <h3>3. Select Target Players</h3>
                     <div class="cap-form-group">
                         <label>Add Player:</label>
                         <div class="cap-input-with-buttons">
@@ -526,21 +709,9 @@ window.CAP.UI = (function() {
                     </div>
                 </div>
 
-                <!-- Attacking Villages -->
-                <div class="cap-section">
-                    <h3>2. Select Attacking Villages</h3>
-                    <div class="cap-form-group">
-                        <button class="cap-button" id="cap-select-all-attackers">Select All</button>
-                        <button class="cap-button" id="cap-clear-attackers">Clear All</button>
-                    </div>
-                    <div class="cap-village-list" id="cap-attacker-villages">
-                        Loading villages...
-                    </div>
-                </div>
-
                 <!-- Target Villages -->
-                <div class="cap-section">
-                    <h3>3. Select Target Villages</h3>
+                <div class="cap-section cap-disabled" id="cap-target-villages-section">
+                    <h3>4. Select Target Villages</h3>
                     <div class="cap-form-group">
                         <label>Add by Coords:</label>
                         <div class="cap-input-with-buttons">
@@ -559,8 +730,8 @@ window.CAP.UI = (function() {
                 </div>
 
                 <!-- Attack Configuration -->
-                <div class="cap-section">
-                    <h3>4. Configure Attacks</h3>
+                <div class="cap-section cap-disabled" id="cap-attack-config-section">
+                    <h3>5. Configure Attacks</h3>
                     <div class="cap-form-group">
                         <button class="cap-button" id="cap-add-attack">Add Attack</button>
                         <button class="cap-button" id="cap-mass-add">Mass Add (All to All)</button>
@@ -587,8 +758,8 @@ window.CAP.UI = (function() {
                 <!-- Action Buttons -->
                 <div class="cap-action-buttons">
                     <button class="cap-button" id="cap-back">← Back</button>
-                    <button class="cap-button" id="cap-preview">Preview Plan</button>
-                    <button class="cap-button" id="cap-export">Export Plan</button>
+                    <button class="cap-button cap-disabled" id="cap-preview">Preview Plan</button>
+                    <button class="cap-button cap-disabled" id="cap-export">Export Plan</button>
                 </div>
             </div>
         `;
@@ -640,11 +811,90 @@ window.CAP.UI = (function() {
         }, 100);
     };
 
+    // Update attacking villages display
+    const updateAttackingVillagesDisplay = () => {
+        const container = document.getElementById('cap-attacker-villages');
+        const attackingPlayer = window.CAP.State.getAttackingPlayer();
+        const playerVillages = window.CAP.State.getPlayerVillages(attackingPlayer);
+        const selectedVillages = window.CAP.State.getAttackingVillages();
+
+        if (!attackingPlayer) {
+            container.innerHTML = 'Please select an attacking player first...';
+            return;
+        }
+
+        if (Object.keys(playerVillages).length === 0) {
+            container.innerHTML = '<div style="color: #666; font-style: italic;">Loading villages...</div>';
+            return;
+        }
+
+        let html = '';
+        Object.values(playerVillages).forEach(village => {
+            const isSelected = selectedVillages.has(village.id);
+            html += `
+                <div class="cap-village-checkbox">
+                    <input type="checkbox" id="village-${village.id}" data-village-id="${village.id}" ${isSelected ? 'checked' : ''}>
+                    <label for="village-${village.id}">${village.name} (${village.coords})</label>
+                </div>
+            `;
+        });
+
+        container.innerHTML = html;
+
+        // Bind village checkbox events
+        container.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                const villageId = this.dataset.villageId;
+                if (this.checked) {
+                    window.CAP.State.addAttackingVillage(villageId);
+                } else {
+                    window.CAP.State.removeAttackingVillage(villageId);
+                }
+            });
+        });
+    };
+
+    // Enable/disable sections based on attacking player selection
+    const toggleSectionStates = (attackingPlayerSet) => {
+        const sections = [
+            'cap-attacking-villages-section',
+            'cap-target-players-section', 
+            'cap-target-villages-section',
+            'cap-attack-config-section'
+        ];
+
+        const buttons = ['cap-preview', 'cap-export'];
+
+        sections.forEach(sectionId => {
+            const section = document.getElementById(sectionId);
+            if (section) {
+                if (attackingPlayerSet) {
+                    section.classList.remove('cap-disabled');
+                } else {
+                    section.classList.add('cap-disabled');
+                }
+            }
+        });
+
+        buttons.forEach(buttonId => {
+            const button = document.getElementById(buttonId);
+            if (button) {
+                if (attackingPlayerSet) {
+                    button.classList.remove('cap-disabled');
+                } else {
+                    button.classList.add('cap-disabled');
+                }
+            }
+        });
+    };
+
     return {
         createModal,
         showPlanDesignPage,
         updateTargetPlayersDisplay,
-        showAddTribeDialog
+        updateAttackingVillagesDisplay,
+        showAddTribeDialog,
+        toggleSectionStates
     };
 })();
 
@@ -759,6 +1009,92 @@ window.CAP.UI = (function() {
             console.log('Loading player data...');
         };
 
+        // Set attacking player
+        const setAttackingPlayer = () => {
+            const input = document.getElementById('cap-attacking-player-input');
+            const playerName = input.value.trim();
+            
+            if (!playerName) {
+                UI.ErrorMessage('Please enter a player name');
+                return;
+            }
+
+            // Show loading indicator
+            input.disabled = true;
+            document.getElementById('cap-set-attacking-player').disabled = true;
+            document.getElementById('cap-set-attacking-player').textContent = 'Checking...';
+
+            // Validate player and get their villages
+            window.CAP.Validation.validatePlayer(playerName)
+                .then(() => {
+                    return window.CAP.Validation.getPlayerVillages(playerName);
+                })
+                .then(villages => {
+                    // Store the attacking player and their villages
+                    window.CAP.State.setAttackingPlayer(playerName);
+                    window.CAP.State.setPlayerVillages(playerName, villages);
+                    
+                    // Update UI
+                    document.getElementById('cap-attacking-player-name').textContent = playerName;
+                    document.getElementById('cap-attacking-player-input').style.display = 'none';
+                    document.getElementById('cap-set-attacking-player').style.display = 'none';
+                    document.getElementById('cap-attacking-player-display').style.display = 'block';
+                    
+                    // Enable other sections
+                    window.CAP.UI.toggleSectionStates(true);
+                    
+                    // Update attacking villages display
+                    window.CAP.UI.updateAttackingVillagesDisplay();
+                    
+                    UI.SuccessMessage(`Plan set for player "${playerName}" with ${Object.keys(villages).length} villages`);
+                })
+                .catch(error => {
+                    UI.ErrorMessage(error);
+                })
+                .finally(() => {
+                    // Re-enable controls
+                    input.disabled = false;
+                    document.getElementById('cap-set-attacking-player').disabled = false;
+                    document.getElementById('cap-set-attacking-player').textContent = 'Set Player';
+                });
+        };
+
+        // Change attacking player
+        const changeAttackingPlayer = () => {
+            // Reset state
+            window.CAP.State.setAttackingPlayer(null);
+            window.CAP.State.setAttackingVillages([]);
+            
+            // Reset UI
+            document.getElementById('cap-attacking-player-input').value = '';
+            document.getElementById('cap-attacking-player-input').style.display = 'inline-block';
+            document.getElementById('cap-set-attacking-player').style.display = 'inline-block';
+            document.getElementById('cap-attacking-player-display').style.display = 'none';
+            
+            // Disable other sections
+            window.CAP.UI.toggleSectionStates(false);
+            window.CAP.UI.updateAttackingVillagesDisplay();
+        };
+
+        // Select/deselect all attacking villages
+        const selectAllAttackingVillages = (selectAll) => {
+            const attackingPlayer = window.CAP.State.getAttackingPlayer();
+            const playerVillages = window.CAP.State.getPlayerVillages(attackingPlayer);
+            
+            if (selectAll) {
+                // Select all villages
+                Object.keys(playerVillages).forEach(villageId => {
+                    window.CAP.State.addAttackingVillage(villageId);
+                });
+            } else {
+                // Clear all selections
+                window.CAP.State.setAttackingVillages([]);
+            }
+            
+            // Update UI
+            window.CAP.UI.updateAttackingVillagesDisplay();
+        };
+
         // Bind events for plan design page
         const bindPlanDesignEvents = () => {
             // Back button
@@ -766,6 +1102,26 @@ window.CAP.UI = (function() {
                 Dialog.close();
                 window.CAP.UI.createModal();
                 bindInitialEvents();
+            };
+
+            // Attacking player selection
+            document.getElementById('cap-attacking-player-input').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    setAttackingPlayer();
+                }
+            });
+
+            document.getElementById('cap-set-attacking-player').onclick = setAttackingPlayer;
+            document.getElementById('cap-change-attacking-player').onclick = changeAttackingPlayer;
+
+            // Attacking village selection
+            document.getElementById('cap-select-all-attackers').onclick = function() {
+                selectAllAttackingVillages(true);
+            };
+
+            document.getElementById('cap-clear-attackers').onclick = function() {
+                selectAllAttackingVillages(false);
             };
 
             // Player input - Enter key support

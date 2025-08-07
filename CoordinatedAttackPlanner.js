@@ -105,6 +105,92 @@
             console.log('Loading player data...');
         };
 
+        // Set attacking player
+        const setAttackingPlayer = () => {
+            const input = document.getElementById('cap-attacking-player-input');
+            const playerName = input.value.trim();
+            
+            if (!playerName) {
+                UI.ErrorMessage('Please enter a player name');
+                return;
+            }
+
+            // Show loading indicator
+            input.disabled = true;
+            document.getElementById('cap-set-attacking-player').disabled = true;
+            document.getElementById('cap-set-attacking-player').textContent = 'Checking...';
+
+            // Validate player and get their villages
+            window.CAP.Validation.validatePlayer(playerName)
+                .then(() => {
+                    return window.CAP.Validation.getPlayerVillages(playerName);
+                })
+                .then(villages => {
+                    // Store the attacking player and their villages
+                    window.CAP.State.setAttackingPlayer(playerName);
+                    window.CAP.State.setPlayerVillages(playerName, villages);
+                    
+                    // Update UI
+                    document.getElementById('cap-attacking-player-name').textContent = playerName;
+                    document.getElementById('cap-attacking-player-input').style.display = 'none';
+                    document.getElementById('cap-set-attacking-player').style.display = 'none';
+                    document.getElementById('cap-attacking-player-display').style.display = 'block';
+                    
+                    // Enable other sections
+                    window.CAP.UI.toggleSectionStates(true);
+                    
+                    // Update attacking villages display
+                    window.CAP.UI.updateAttackingVillagesDisplay();
+                    
+                    UI.SuccessMessage(`Plan set for player "${playerName}" with ${Object.keys(villages).length} villages`);
+                })
+                .catch(error => {
+                    UI.ErrorMessage(error);
+                })
+                .finally(() => {
+                    // Re-enable controls
+                    input.disabled = false;
+                    document.getElementById('cap-set-attacking-player').disabled = false;
+                    document.getElementById('cap-set-attacking-player').textContent = 'Set Player';
+                });
+        };
+
+        // Change attacking player
+        const changeAttackingPlayer = () => {
+            // Reset state
+            window.CAP.State.setAttackingPlayer(null);
+            window.CAP.State.setAttackingVillages([]);
+            
+            // Reset UI
+            document.getElementById('cap-attacking-player-input').value = '';
+            document.getElementById('cap-attacking-player-input').style.display = 'inline-block';
+            document.getElementById('cap-set-attacking-player').style.display = 'inline-block';
+            document.getElementById('cap-attacking-player-display').style.display = 'none';
+            
+            // Disable other sections
+            window.CAP.UI.toggleSectionStates(false);
+            window.CAP.UI.updateAttackingVillagesDisplay();
+        };
+
+        // Select/deselect all attacking villages
+        const selectAllAttackingVillages = (selectAll) => {
+            const attackingPlayer = window.CAP.State.getAttackingPlayer();
+            const playerVillages = window.CAP.State.getPlayerVillages(attackingPlayer);
+            
+            if (selectAll) {
+                // Select all villages
+                Object.keys(playerVillages).forEach(villageId => {
+                    window.CAP.State.addAttackingVillage(villageId);
+                });
+            } else {
+                // Clear all selections
+                window.CAP.State.setAttackingVillages([]);
+            }
+            
+            // Update UI
+            window.CAP.UI.updateAttackingVillagesDisplay();
+        };
+
         // Bind events for plan design page
         const bindPlanDesignEvents = () => {
             // Back button
@@ -112,6 +198,26 @@
                 Dialog.close();
                 window.CAP.UI.createModal();
                 bindInitialEvents();
+            };
+
+            // Attacking player selection
+            document.getElementById('cap-attacking-player-input').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    setAttackingPlayer();
+                }
+            });
+
+            document.getElementById('cap-set-attacking-player').onclick = setAttackingPlayer;
+            document.getElementById('cap-change-attacking-player').onclick = changeAttackingPlayer;
+
+            // Attacking village selection
+            document.getElementById('cap-select-all-attackers').onclick = function() {
+                selectAllAttackingVillages(true);
+            };
+
+            document.getElementById('cap-clear-attackers').onclick = function() {
+                selectAllAttackingVillages(false);
             };
 
             // Player input - Enter key support

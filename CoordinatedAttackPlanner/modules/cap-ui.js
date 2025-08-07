@@ -157,6 +157,21 @@ window.CAP.UI = (function() {
                     background: rgba(255,255,255,0.8);
                     padding: 5px;
                 }
+                .cap-village-checkbox {
+                    margin: 2px 0;
+                    padding: 2px 5px;
+                    border-bottom: 1px solid #ddd;
+                }
+                .cap-village-checkbox:last-child {
+                    border-bottom: none;
+                }
+                .cap-village-checkbox input {
+                    margin-right: 8px;
+                }
+                .cap-attacking-player {
+                    background: #e6ffe6;
+                    border: 2px solid #4CAF50;
+                }
                 .cap-attack-table {
                     width: 100%;
                     border-collapse: collapse;
@@ -197,6 +212,10 @@ window.CAP.UI = (function() {
                     text-align: center;
                     margin-top: 20px;
                 }
+                .cap-disabled {
+                    opacity: 0.5;
+                    pointer-events: none;
+                }
             </style>
         `;
 
@@ -205,9 +224,37 @@ window.CAP.UI = (function() {
             <div class="cap-content">
                 <h2 class="cap-title">Create Attack Plan</h2>
                 
+                <!-- Attacking Player Selection -->
+                <div class="cap-section cap-attacking-player">
+                    <h3>1. Select Attacking Player (Plan Recipient)</h3>
+                    <div class="cap-form-group">
+                        <label>Player Name:</label>
+                        <div class="cap-input-with-buttons">
+                            <input type="text" id="cap-attacking-player-input" placeholder="Enter player name..." autocomplete="off">
+                            <button class="cap-button cap-button-small" id="cap-set-attacking-player">Set Player</button>
+                        </div>
+                    </div>
+                    <div id="cap-attacking-player-display" style="display: none;">
+                        <strong>Creating plan for: <span id="cap-attacking-player-name"></span></strong>
+                        <button class="cap-button cap-button-small" id="cap-change-attacking-player" style="margin-left: 10px;">Change Player</button>
+                    </div>
+                </div>
+
+                <!-- Attacking Villages -->
+                <div class="cap-section cap-disabled" id="cap-attacking-villages-section">
+                    <h3>2. Select Attacking Villages</h3>
+                    <div class="cap-form-group">
+                        <button class="cap-button" id="cap-select-all-attackers">Select All</button>
+                        <button class="cap-button" id="cap-clear-attackers">Clear All</button>
+                    </div>
+                    <div class="cap-village-list" id="cap-attacker-villages">
+                        Please select an attacking player first...
+                    </div>
+                </div>
+
                 <!-- Target Player Selection -->
-                <div class="cap-section">
-                    <h3>1. Select Target Players</h3>
+                <div class="cap-section cap-disabled" id="cap-target-players-section">
+                    <h3>3. Select Target Players</h3>
                     <div class="cap-form-group">
                         <label>Add Player:</label>
                         <div class="cap-input-with-buttons">
@@ -221,21 +268,9 @@ window.CAP.UI = (function() {
                     </div>
                 </div>
 
-                <!-- Attacking Villages -->
-                <div class="cap-section">
-                    <h3>2. Select Attacking Villages</h3>
-                    <div class="cap-form-group">
-                        <button class="cap-button" id="cap-select-all-attackers">Select All</button>
-                        <button class="cap-button" id="cap-clear-attackers">Clear All</button>
-                    </div>
-                    <div class="cap-village-list" id="cap-attacker-villages">
-                        Loading villages...
-                    </div>
-                </div>
-
                 <!-- Target Villages -->
-                <div class="cap-section">
-                    <h3>3. Select Target Villages</h3>
+                <div class="cap-section cap-disabled" id="cap-target-villages-section">
+                    <h3>4. Select Target Villages</h3>
                     <div class="cap-form-group">
                         <label>Add by Coords:</label>
                         <div class="cap-input-with-buttons">
@@ -254,8 +289,8 @@ window.CAP.UI = (function() {
                 </div>
 
                 <!-- Attack Configuration -->
-                <div class="cap-section">
-                    <h3>4. Configure Attacks</h3>
+                <div class="cap-section cap-disabled" id="cap-attack-config-section">
+                    <h3>5. Configure Attacks</h3>
                     <div class="cap-form-group">
                         <button class="cap-button" id="cap-add-attack">Add Attack</button>
                         <button class="cap-button" id="cap-mass-add">Mass Add (All to All)</button>
@@ -282,8 +317,8 @@ window.CAP.UI = (function() {
                 <!-- Action Buttons -->
                 <div class="cap-action-buttons">
                     <button class="cap-button" id="cap-back">← Back</button>
-                    <button class="cap-button" id="cap-preview">Preview Plan</button>
-                    <button class="cap-button" id="cap-export">Export Plan</button>
+                    <button class="cap-button cap-disabled" id="cap-preview">Preview Plan</button>
+                    <button class="cap-button cap-disabled" id="cap-export">Export Plan</button>
                 </div>
             </div>
         `;
@@ -335,10 +370,89 @@ window.CAP.UI = (function() {
         }, 100);
     };
 
+    // Update attacking villages display
+    const updateAttackingVillagesDisplay = () => {
+        const container = document.getElementById('cap-attacker-villages');
+        const attackingPlayer = window.CAP.State.getAttackingPlayer();
+        const playerVillages = window.CAP.State.getPlayerVillages(attackingPlayer);
+        const selectedVillages = window.CAP.State.getAttackingVillages();
+
+        if (!attackingPlayer) {
+            container.innerHTML = 'Please select an attacking player first...';
+            return;
+        }
+
+        if (Object.keys(playerVillages).length === 0) {
+            container.innerHTML = '<div style="color: #666; font-style: italic;">Loading villages...</div>';
+            return;
+        }
+
+        let html = '';
+        Object.values(playerVillages).forEach(village => {
+            const isSelected = selectedVillages.has(village.id);
+            html += `
+                <div class="cap-village-checkbox">
+                    <input type="checkbox" id="village-${village.id}" data-village-id="${village.id}" ${isSelected ? 'checked' : ''}>
+                    <label for="village-${village.id}">${village.name} (${village.coords})</label>
+                </div>
+            `;
+        });
+
+        container.innerHTML = html;
+
+        // Bind village checkbox events
+        container.querySelectorAll('input[type="checkbox"]').forEach(checkbox => {
+            checkbox.addEventListener('change', function() {
+                const villageId = this.dataset.villageId;
+                if (this.checked) {
+                    window.CAP.State.addAttackingVillage(villageId);
+                } else {
+                    window.CAP.State.removeAttackingVillage(villageId);
+                }
+            });
+        });
+    };
+
+    // Enable/disable sections based on attacking player selection
+    const toggleSectionStates = (attackingPlayerSet) => {
+        const sections = [
+            'cap-attacking-villages-section',
+            'cap-target-players-section', 
+            'cap-target-villages-section',
+            'cap-attack-config-section'
+        ];
+
+        const buttons = ['cap-preview', 'cap-export'];
+
+        sections.forEach(sectionId => {
+            const section = document.getElementById(sectionId);
+            if (section) {
+                if (attackingPlayerSet) {
+                    section.classList.remove('cap-disabled');
+                } else {
+                    section.classList.add('cap-disabled');
+                }
+            }
+        });
+
+        buttons.forEach(buttonId => {
+            const button = document.getElementById(buttonId);
+            if (button) {
+                if (attackingPlayerSet) {
+                    button.classList.remove('cap-disabled');
+                } else {
+                    button.classList.add('cap-disabled');
+                }
+            }
+        });
+    };
+
     return {
         createModal,
         showPlanDesignPage,
         updateTargetPlayersDisplay,
-        showAddTribeDialog
+        updateAttackingVillagesDisplay,
+        showAddTribeDialog,
+        toggleSectionStates
     };
 })();

@@ -7,21 +7,27 @@ window.CAP.State = (function() {
     // Application state
     let targetPlayers = new Set(); // Store selected target player names
     let targetVillages = new Set(); // Store selected target villages
+    let attackingPlayer = null; // Store the attacking player name
     let attackingVillages = new Set(); // Store selected attacking villages
+    let playerVillages = {}; // Store player's village data {playerId: {villageId: {name, coords, ...}}}
     let attacks = []; // Store configured attacks
     let currentPlan = null; // Current plan being worked on
 
     // Getters
     const getTargetPlayers = () => targetPlayers;
     const getTargetVillages = () => targetVillages;
+    const getAttackingPlayer = () => attackingPlayer;
     const getAttackingVillages = () => attackingVillages;
+    const getPlayerVillages = (playerName) => playerVillages[playerName] || {};
     const getAttacks = () => attacks;
     const getCurrentPlan = () => currentPlan;
 
     // Setters
     const setTargetPlayers = (players) => { targetPlayers = new Set(players); };
     const setTargetVillages = (villages) => { targetVillages = new Set(villages); };
+    const setAttackingPlayer = (playerName) => { attackingPlayer = playerName; };
     const setAttackingVillages = (villages) => { attackingVillages = new Set(villages); };
+    const setPlayerVillages = (playerName, villages) => { playerVillages[playerName] = villages; };
     const setAttacks = (newAttacks) => { attacks = [...newAttacks]; };
     const setCurrentPlan = (plan) => { currentPlan = plan; };
 
@@ -34,10 +40,20 @@ window.CAP.State = (function() {
         targetPlayers.delete(playerName);
     };
 
+    const addAttackingVillage = (villageId) => {
+        attackingVillages.add(villageId);
+    };
+
+    const removeAttackingVillage = (villageId) => {
+        attackingVillages.delete(villageId);
+    };
+
     const clearAll = () => {
         targetPlayers.clear();
         targetVillages.clear();
+        attackingPlayer = null;
         attackingVillages.clear();
+        playerVillages = {};
         attacks.length = 0;
         currentPlan = null;
     };
@@ -67,20 +83,26 @@ window.CAP.State = (function() {
         // Getters
         getTargetPlayers,
         getTargetVillages,
+        getAttackingPlayer,
         getAttackingVillages,
+        getPlayerVillages,
         getAttacks,
         getCurrentPlan,
         
         // Setters
         setTargetPlayers,
         setTargetVillages,
+        setAttackingPlayer,
         setAttackingVillages,
+        setPlayerVillages,
         setAttacks,
         setCurrentPlan,
         
         // Utilities
         addTargetPlayer,
         removeTargetPlayer,
+        addAttackingVillage,
+        removeAttackingVillage,
         clearAll,
         getRecentTargets,
         addToRecentTargets
