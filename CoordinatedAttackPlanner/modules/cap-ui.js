@@ -212,6 +212,26 @@ window.CAP.UI = (function() {
                     opacity: 0.5;
                     pointer-events: none;
                 }
+                .cap-loading-indicator {
+                    display: inline-block;
+                    margin-left: 10px;
+                    color: #7D510F;
+                    font-weight: bold;
+                }
+                .cap-spinner {
+                    display: inline-block;
+                    width: 12px;
+                    height: 12px;
+                    border: 2px solid #f3f3f3;
+                    border-top: 2px solid #7D510F;
+                    border-radius: 50%;
+                    animation: spin 1s linear infinite;
+                    margin-right: 5px;
+                }
+                @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                }
             </style>
         `;
 
@@ -278,6 +298,9 @@ window.CAP.UI = (function() {
                         <label>From Players:</label>
                         <button class="cap-button cap-button-small" id="cap-add-all-villages">Add All Villages</button>
                         <button class="cap-button cap-button-small" id="cap-clear-all-villages">Clear All</button>
+                        <span id="cap-loading-all-villages" class="cap-loading-indicator" style="display: none;">
+                            <span class="cap-spinner"></span>Loading villages...
+                        </span>
                         <span style="color: #666; font-size: 11px; margin-left: 10px;">Adds all villages from selected target players</span>
                     </div>
                     <div class="cap-form-group">
@@ -446,7 +469,7 @@ window.CAP.UI = (function() {
                 <p>Enter tribe tag to add all members as targets:</p>
                 <input type="text" id="tribe-input" placeholder="Enter tribe tag..." style="width: 200px; margin: 10px 0;">
                 <br>
-                <button class="cap-button" onclick="window.CAP.addTribeMembers()">Add Tribe</button>
+                <button class="cap-button" id="cap-add-tribe-confirm" onclick="window.CAP.addTribeMembers()">Add Tribe</button>
                 <button class="cap-button" onclick="Dialog.close()">Cancel</button>
             </div>
         `;
@@ -536,6 +559,27 @@ window.CAP.UI = (function() {
         });
     };
 
+    // Show loading indicator for village loading
+    const showVillageLoadingIndicator = (show, message = 'Loading villages...') => {
+        const indicator = document.getElementById('cap-loading-all-villages');
+        if (indicator) {
+            if (show) {
+                indicator.style.display = 'inline-block';
+                indicator.innerHTML = `<span class="cap-spinner"></span>${message}`;
+            } else {
+                indicator.style.display = 'none';
+            }
+        }
+    };
+
+    // Update loading indicator message
+    const updateVillageLoadingMessage = (message) => {
+        const indicator = document.getElementById('cap-loading-all-villages');
+        if (indicator && indicator.style.display !== 'none') {
+            indicator.innerHTML = `<span class="cap-spinner"></span>${message}`;
+        }
+    };
+
     return {
         createModal,
         showPlanDesignPage,
@@ -545,6 +589,8 @@ window.CAP.UI = (function() {
         updateTargetVillageDropdown,
         updateAttackingVillagesDisplay,
         showAddTribeDialog,
-        toggleSectionStates
+        toggleSectionStates,
+        showVillageLoadingIndicator,
+        updateVillageLoadingMessage
     };
 })();

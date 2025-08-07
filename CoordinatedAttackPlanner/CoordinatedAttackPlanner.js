@@ -1,502 +1,327 @@
 (function() {
-    // Global namespace for the application
-    window.CAP = window.CAP || {};
+    // Utility to create modal
+    function createModal() {
+        // Remove any existing modal
+        const oldModal = document.getElementById('tw-cap-modal');
+        if (oldModal) oldModal.remove();
 
-    // Main application controller
-    window.CAP.Main = (function() {
+        window.CAP.UI.createModal();
 
-        // Add a target player by name
-        const addTargetPlayer = () => {
-            const input = document.getElementById('cap-player-input');
-            const playerName = input.value.trim();
-            
-            if (!playerName) {
-                UI.ErrorMessage('Please enter a player name');
-                return;
-            }
+        // Bind event handlers
+        document.getElementById('cap-create-btn').onclick = function() {
+            Dialog.close();
+            showPlanDesignPage();
+        };
+        document.getElementById('cap-import-btn').onclick = function() {
+            Dialog.close();
+            alert('Import mode not yet implemented.');
+        };
+    }
 
-            if (window.CAP.State.getTargetPlayers().has(playerName)) {
-                UI.ErrorMessage('Player already added');
-                return;
-            }
+    // Plan Design Page
+    function showPlanDesignPage() {
+        window.CAP.UI.showPlanDesignPage();
+        bindPlanDesignEvents();
+        loadPlayerData();
+    }
 
-            // Show loading indicator
-            input.disabled = true;
-            document.getElementById('cap-add-player').disabled = true;
-            document.getElementById('cap-add-player').textContent = 'Checking...';
+    // Bind events for plan design page (prevent double binding)
+    function bindPlanDesignEvents() {
+        // Clear old handlers
+        [
+            'cap-back', 'cap-create-btn', 'cap-import-btn',
+            'cap-select-all-attackers', 'cap-clear-attackers',
+            'cap-preview', 'cap-export', 'cap-add-attack',
+            'cap-mass-add', 'cap-clear-attacks'
+        ].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) el.replaceWith(el.cloneNode(true));
+        });
 
-            // Validate player exists
-            window.CAP.Validation.validatePlayer(playerName)
+        document.getElementById('cap-back').onclick = function() {
+            Dialog.close();
+            createModal();
+        };
+
+        setupAttackingPlayerEvents();
+        setupTargetPlayerEvents();
+        setupTargetVillageEvents();
+        setupAttackingVillageEvents();
+
+        // Placeholder handlers
+        document.getElementById('cap-add-attack').onclick   = () => alert('Add attack - not implemented');
+        document.getElementById('cap-mass-add').onclick     = () => alert('Mass add - not implemented');
+        document.getElementById('cap-clear-attacks').onclick= () => alert('Clear attacks - not implemented');
+        document.getElementById('cap-preview').onclick      = () => alert('Preview plan - not implemented');
+        document.getElementById('cap-export').onclick       = () => alert('Export plan - not implemented');
+    }
+
+    // Attacking player events
+    function setupAttackingPlayerEvents() {
+        const input = document.getElementById('cap-attacking-player-input');
+        const setBtn = document.getElementById('cap-set-attacking-player');
+        const changeBtn = document.getElementById('cap-change-attacking-player');
+
+        setBtn.onclick = function() {
+            const name = input.value.trim();
+            if (!name) return UI.ErrorMessage('Please enter a player name');
+            input.disabled = this.disabled = true;
+            this.textContent = 'Checking...';
+
+            window.CAP.Validation.validatePlayer(name)
                 .then(() => {
-                    // Add to our state
-                    window.CAP.State.addTargetPlayer(playerName);
-                    
-                    // Clear input
-                    input.value = '';
-                    
-                    // Update display
-                    window.CAP.UI.updateTargetPlayersDisplay();
-                    
-                    // Store in recent targets
-                    window.CAP.State.addToRecentTargets(playerName);
-                    
-                    UI.SuccessMessage(`Player "${playerName}" added successfully`);
-                })
-                .catch(error => {
-                    UI.ErrorMessage(error);
-                })
-                .finally(() => {
-                    // Re-enable controls
-                    input.disabled = false;
-                    document.getElementById('cap-add-player').disabled = false;
-                    document.getElementById('cap-add-player').textContent = 'Add';
-                });
-        };
-
-        // Add tribe members with validation
-        const addTribeMembers = () => {
-            const tribeTag = document.getElementById('tribe-input').value.trim();
-            
-            if (!tribeTag) {
-                UI.ErrorMessage('Please enter a tribe tag');
-                return;
-            }
-
-            // Disable inputs while checking
-            document.getElementById('tribe-input').disabled = true;
-            const addBtn = document.querySelector('#popup_box_AddTribe .cap-button:first-of-type');
-            addBtn.disabled = true;
-            addBtn.textContent = 'Checking...';
-
-            window.CAP.Validation.validateTribe(tribeTag)
-                .then(members => {
-                    Dialog.close();
-                    
-                    let addedCount = 0;
-                    members.forEach(playerName => {
-                        if (!window.CAP.State.getTargetPlayers().has(playerName)) {
-                            window.CAP.State.addTargetPlayer(playerName);
-                            window.CAP.State.addToRecentTargets(playerName);
-                            addedCount++;
-                        }
-                    });
-                    
-                    window.CAP.UI.updateTargetPlayersDisplay();
-                    UI.SuccessMessage(`Added ${addedCount} players from tribe ${tribeTag}`);
-                })
-                .catch(error => {
-                    UI.ErrorMessage(error);
-                    // Re-enable inputs on error
-                    document.getElementById('tribe-input').disabled = false;
-                    addBtn.disabled = false;
-                    addBtn.textContent = 'Add Tribe';
-                });
-        };
-
-        // Remove a target player
-        const removeTargetPlayer = (playerName) => {
-            window.CAP.State.removeTargetPlayer(playerName);
-            window.CAP.UI.updateTargetPlayersDisplay();
-        };
-
-        // Load player data (placeholder)
-        const loadPlayerData = () => {
-            // Placeholder implementation
-            console.log('Loading player data...');
-        };
-
-        // Set attacking player
-        const setAttackingPlayer = () => {
-            const input = document.getElementById('cap-attacking-player-input');
-            const playerName = input.value.trim();
-            
-            if (!playerName) {
-                UI.ErrorMessage('Please enter a player name');
-                return;
-            }
-
-            // Show loading indicator
-            input.disabled = true;
-            document.getElementById('cap-set-attacking-player').disabled = true;
-            document.getElementById('cap-set-attacking-player').textContent = 'Checking...';
-
-            // Validate player and get their villages
-            window.CAP.Validation.validatePlayer(playerName)
-                .then(() => {
-                    return window.CAP.Validation.getPlayerVillages(playerName);
-                })
-                .then(villages => {
-                    // Store the attacking player and their villages
-                    window.CAP.State.setAttackingPlayer(playerName);
-                    window.CAP.State.setPlayerVillages(playerName, villages);
-                    
-                    // Update UI
-                    document.getElementById('cap-attacking-player-name').textContent = playerName;
-                    document.getElementById('cap-attacking-player-input').style.display = 'none';
-                    document.getElementById('cap-set-attacking-player').style.display = 'none';
+                    window.CAP.State.setAttackingPlayer(name);
+                    document.getElementById('cap-attacking-player-name').textContent = name;
                     document.getElementById('cap-attacking-player-display').style.display = 'block';
-                    
-                    // Enable other sections
+                    input.style.display = setBtn.style.display = 'none';
                     window.CAP.UI.toggleSectionStates(true);
-                    
-                    // Update attacking villages display
-                    window.CAP.UI.updateAttackingVillagesDisplay();
-                    
-                    UI.SuccessMessage(`Plan set for player "${playerName}" with ${Object.keys(villages).length} villages`);
+                    loadAttackingPlayerVillages(name);
+                    UI.SuccessMessage(`Player "${name}" set successfully`);
                 })
-                .catch(error => {
-                    UI.ErrorMessage(error);
-                })
-                .finally(() => {
-                    // Re-enable controls
-                    input.disabled = false;
-                    document.getElementById('cap-set-attacking-player').disabled = false;
-                    document.getElementById('cap-set-attacking-player').textContent = 'Set Player';
+                .catch(err => {
+                    UI.ErrorMessage(err);
+                    input.disabled = this.disabled = false;
+                    this.textContent = 'Set Player';
                 });
         };
 
-        // Change attacking player
-        const changeAttackingPlayer = () => {
-            // Reset state
+        changeBtn.onclick = function() {
             window.CAP.State.setAttackingPlayer(null);
-            window.CAP.State.setAttackingVillages([]);
-            
-            // Reset UI
-            document.getElementById('cap-attacking-player-input').value = '';
-            document.getElementById('cap-attacking-player-input').style.display = 'inline-block';
-            document.getElementById('cap-set-attacking-player').style.display = 'inline-block';
+            window.CAP.State.setAttackingVillages(new Set());
             document.getElementById('cap-attacking-player-display').style.display = 'none';
-            
-            // Disable other sections
+            input.style.display = setBtn.style.display = 'inline';
+            input.value = '';
             window.CAP.UI.toggleSectionStates(false);
             window.CAP.UI.updateAttackingVillagesDisplay();
         };
 
-        // Select/deselect all attacking villages
-        const selectAllAttackingVillages = (selectAll) => {
-            const attackingPlayer = window.CAP.State.getAttackingPlayer();
-            const playerVillages = window.CAP.State.getPlayerVillages(attackingPlayer);
-            
-            if (selectAll) {
-                // Select all villages
-                Object.keys(playerVillages).forEach(villageId => {
-                    window.CAP.State.addAttackingVillage(villageId);
-                });
-            } else {
-                // Clear all selections
-                window.CAP.State.setAttackingVillages([]);
+        input.addEventListener('keypress', e => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                setBtn.click();
             }
-            
-            // Update UI
-            window.CAP.UI.updateAttackingVillagesDisplay();
-        };
+        });
+    }
 
-        // Add target villages by coordinates
-        const addTargetVillagesByCoords = () => {
-            const input = document.getElementById('cap-target-coords');
-            const coordsInput = input.value.trim();
-            
-            if (!coordsInput) {
-                UI.ErrorMessage('Please enter coordinates');
-                return;
+    // Target player events
+    function setupTargetPlayerEvents() {
+        const input = document.getElementById('cap-player-input');
+        document.getElementById('cap-add-player').onclick = addTargetPlayer;
+        input.addEventListener('keypress', e => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                addTargetPlayer();
             }
+        });
+        document.getElementById('cap-add-tribe').onclick = () => window.CAP.UI.showAddTribeDialog();
+    }
 
-            // Parse comma-separated coordinates
-            const coordsList = coordsInput.split(',').map(coord => coord.trim());
-            let addedCount = 0;
-            let invalidCoords = [];
-
-            coordsList.forEach(coords => {
-                // Validate coordinate format
-                if (coords.match(/^\d{1,3}\|\d{1,3}$/)) {
-                    if (!window.CAP.State.getTargetVillages().has(coords)) {
-                        window.CAP.State.addTargetVillage(coords);
-                        addedCount++;
-                    }
-                } else if (coords) {
-                    invalidCoords.push(coords);
-                }
-            });
-
-            // Clear input and update display
-            input.value = '';
-            window.CAP.UI.updateTargetVillagesDisplay();
-
-            // Show feedback
-            showAddVillagesFeedback(addedCount, invalidCoords);
-        };
-
-        // Helper function for consistent feedback messages
-        const showAddVillagesFeedback = (addedCount, invalidCoords = []) => {
-            if (addedCount > 0) {
-                UI.SuccessMessage(`Added ${addedCount} target village${addedCount > 1 ? 's' : ''}`);
-            }
-            if (invalidCoords.length > 0) {
-                UI.ErrorMessage(`Invalid coordinates: ${invalidCoords.join(', ')}`);
-            }
-            if (addedCount === 0 && invalidCoords.length === 0) {
-                UI.ErrorMessage('No new coordinates to add');
-            }
-        };
-
-        // Add all villages from all target players
-        const addAllTargetVillages = () => {
-            const targetPlayers = window.CAP.State.getTargetPlayers();
-            
-            if (targetPlayers.size === 0) {
-                UI.ErrorMessage('Please select target players first');
-                return;
-            }
-
-            addVillagesFromPlayers(Array.from(targetPlayers), 'Adding villages from all target players...');
-        };
-
-        // Add all villages from currently selected player
-        const addAllPlayerVillages = () => {
-            const selectedPlayer = document.getElementById('cap-target-player-dropdown').value;
-            
-            if (!selectedPlayer) {
-                UI.ErrorMessage('Please select a player first');
-                return;
-            }
-
-            addVillagesFromPlayers([selectedPlayer], `Adding all villages from ${selectedPlayer}...`);
-        };
-
-        // Reusable function to add villages from multiple players
-        const addVillagesFromPlayers = (playerNames, statusMessage) => {
-            let totalAdded = 0;
-            let processedCount = 0;
-            const totalPlayers = playerNames.length;
-
-            // Show loading message
-            UI.InfoMessage(statusMessage);
-
-            // Function to process each player's villages
-            const processPlayer = (playerName) => {
-                return new Promise((resolve) => {
-                    const existingVillages = window.CAP.State.getPlayerVillages(playerName);
-                    
-                    if (Object.keys(existingVillages).length > 0) {
-                        // Use cached villages
-                        Object.values(existingVillages).forEach(village => {
-                            if (!window.CAP.State.getTargetVillages().has(village.coords)) {
-                                window.CAP.State.addTargetVillage(village.coords, village.name, playerName);
-                                totalAdded++;
-                            }
-                        });
-                        resolve();
-                    } else {
-                        // Fetch villages for this player
-                        window.CAP.Validation.getPlayerVillages(playerName)
-                            .then(villages => {
-                                window.CAP.State.setPlayerVillages(playerName, villages);
-                                Object.values(villages).forEach(village => {
-                                    if (!window.CAP.State.getTargetVillages().has(village.coords)) {
-                                        window.CAP.State.addTargetVillage(village.coords, village.name, playerName);
-                                        totalAdded++;
-                                    }
-                                });
-                                resolve();
-                            })
-                            .catch(() => {
-                                resolve(); // Continue even if one player fails
-                            });
-                    }
-                });
-            };
-
-            // Process all players
-            const promises = playerNames.map(processPlayer);
-            
-            Promise.all(promises).then(() => {
-                window.CAP.UI.updateTargetVillagesDisplay();
-                UI.SuccessMessage(`Added ${totalAdded} target villages from ${totalPlayers} player${totalPlayers > 1 ? 's' : ''}`);
-            });
-        };
-
-        // Add selected village from dropdown
-        const addSelectedTargetVillage = () => {
-            const villageCoords = document.getElementById('cap-target-village-dropdown').value;
-            const selectedPlayer = document.getElementById('cap-target-player-dropdown').value;
-            
-            if (!villageCoords) {
-                UI.ErrorMessage('Please select a village');
-                return;
-            }
-
-            if (window.CAP.State.getTargetVillages().has(villageCoords)) {
-                UI.ErrorMessage('Village already added');
-                return;
-            }
-
-            // Get village name from player's village data
-            const playerVillages = window.CAP.State.getPlayerVillages(selectedPlayer);
-            const village = Object.values(playerVillages).find(v => v.coords === villageCoords);
-            const villageName = village ? village.name : villageCoords;
-
-            window.CAP.State.addTargetVillage(villageCoords, villageName, selectedPlayer);
-            window.CAP.UI.updateTargetVillagesDisplay();
-            
-            // Reset dropdown selection
-            document.getElementById('cap-target-village-dropdown').value = '';
-            
-            UI.SuccessMessage(`Added target village ${villageName} (${villageCoords})`);
-        };
-
-        // Clear all target villages
-        const clearAllTargetVillages = () => {
+    // Target village events
+    function setupTargetVillageEvents() {
+        document.getElementById('cap-add-all-villages').onclick = addAllVillagesFromPlayers;
+        document.getElementById('cap-clear-all-villages').onclick = () => {
             window.CAP.State.clearTargetVillages();
             window.CAP.UI.updateTargetVillagesDisplay();
-            UI.SuccessMessage('Cleared all target villages');
+            UI.SuccessMessage('All target villages cleared');
         };
-
-        // Remove a target village
-        const removeTargetVillage = (villageCoords) => {
-            window.CAP.State.removeTargetVillage(villageCoords);
-            window.CAP.UI.updateTargetVillagesDisplay();
-        };
-
-        // Bind events for plan design page
-        const bindPlanDesignEvents = () => {
-            // Back button
-            document.getElementById('cap-back').onclick = function() {
-                Dialog.close();
-                window.CAP.UI.createModal();
-                bindInitialEvents();
-            };
-
-            // Attacking player selection
-            document.getElementById('cap-attacking-player-input').addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    setAttackingPlayer();
+        document.getElementById('cap-add-coords').onclick = function() {
+            const coords = document.getElementById('cap-target-coords').value.trim().split(',').map(c=>c.trim());
+            let count = 0;
+            coords.forEach(coord => {
+                if (/^\d{1,3}\|\d{1,3}$/.test(coord)) {
+                    window.CAP.State.addTargetVillage(coord);
+                    count++;
                 }
             });
-
-            document.getElementById('cap-set-attacking-player').onclick = setAttackingPlayer;
-            document.getElementById('cap-change-attacking-player').onclick = changeAttackingPlayer;
-
-            // Attacking village selection
-            document.getElementById('cap-select-all-attackers').onclick = function() {
-                selectAllAttackingVillages(true);
-            };
-
-            document.getElementById('cap-clear-attackers').onclick = function() {
-                selectAllAttackingVillages(false);
-            };
-
-            // Player input - Enter key support
-            document.getElementById('cap-player-input').addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    addTargetPlayer();
+            count
+                ? (window.CAP.UI.updateTargetVillagesDisplay(), UI.SuccessMessage(`Added ${count} target villages`))
+                : UI.ErrorMessage('No valid coordinates found');
+            document.getElementById('cap-target-coords').value = '';
+        };
+        document.getElementById('cap-target-player-dropdown').onchange = function() {
+            window.CAP.UI.updateTargetVillageDropdown(this.value);
+        };
+        document.getElementById('cap-add-selected-village').onclick = function() {
+            const player = document.getElementById('cap-target-player-dropdown').value;
+            const coords = document.getElementById('cap-target-village-dropdown').value;
+            if (!player || !coords) return UI.ErrorMessage('Please select both player and village');
+            const villages = window.CAP.State.getPlayerVillages(player);
+            const v = Object.values(villages).find(x => x.coords === coords);
+            if (v) {
+                window.CAP.State.addTargetVillage(v.coords, v.name, v.player);
+                window.CAP.UI.updateTargetVillagesDisplay();
+                UI.SuccessMessage(`Added ${v.name} (${v.coords})`);
+            } else UI.ErrorMessage('Village not found');
+        };
+        document.getElementById('cap-add-all-player-villages').onclick = function() {
+            const player = document.getElementById('cap-target-player-dropdown').value;
+            if (!player) return UI.ErrorMessage('Please select a player first');
+            const villages = window.CAP.State.getPlayerVillages(player);
+            let added=0;
+            Object.values(villages).forEach(v => {
+                if (!window.CAP.State.getTargetVillages().has(v.coords)) {
+                    window.CAP.State.addTargetVillage(v.coords, v.name, v.player);
+                    added++;
                 }
             });
+            added
+                ? (window.CAP.UI.updateTargetVillagesDisplay(), UI.SuccessMessage(`Added ${added} villages from ${player}`))
+                : UI.InfoMessage(`All villages from ${player} already added`);
+        };
+    }
 
-            // Add player button
-            document.getElementById('cap-add-player').onclick = addTargetPlayer;
+    // Attacking village events
+    function setupAttackingVillageEvents() {
+        document.getElementById('cap-select-all-attackers').onclick = () => {
+            const player = window.CAP.State.getAttackingPlayer();
+            Object.values(window.CAP.State.getPlayerVillages(player)).forEach(v => {
+                window.CAP.State.addAttackingVillage(v.id);
+            });
+            window.CAP.UI.updateAttackingVillagesDisplay();
+            UI.SuccessMessage('All attacking villages selected');
+        };
+        document.getElementById('cap-clear-attackers').onclick = () => {
+            window.CAP.State.setAttackingVillages(new Set());
+            window.CAP.UI.updateAttackingVillagesDisplay();
+            UI.SuccessMessage('All attacking villages cleared');
+        };
+    }
 
-            // Add tribe button
-            document.getElementById('cap-add-tribe').onclick = function() {
-                window.CAP.UI.showAddTribeDialog();
+    // Helpers
+    function loadAttackingPlayerVillages(name) {
+        window.CAP.Validation.getPlayerVillages(name)
+            .then(v => {
+                window.CAP.State.setPlayerVillages(name, v);
+                window.CAP.UI.updateAttackingVillagesDisplay();
+            })
+            .catch(err => UI.ErrorMessage(`Failed to load villages for ${name}: ${err}`));
+    }
+
+    function addAllVillagesFromPlayers() {
+        const players = Array.from(window.CAP.State.getTargetPlayers());
+        if (!players.length) return UI.ErrorMessage('Please select target players first');
+
+        const btn = document.getElementById('cap-add-all-villages');
+        btn.disabled = true; btn.textContent = 'Loading...';
+        window.CAP.UI.showVillageLoadingIndicator(true);
+        let idx=0, total=0, errors=[];
+
+        function next() {
+            if (idx >= players.length) {
+                btn.disabled = false; btn.textContent = 'Add All Villages';
+                window.CAP.UI.showVillageLoadingIndicator(false);
+                errors.length
+                    ? UI.ErrorMessage(`Completed with ${errors.length} errors. Added ${total} villages.`)
+                    : UI.SuccessMessage(`Successfully added ${total} villages from ${players.length} players`);
+                return;
+            }
+            const p = players[idx++];
+            window.CAP.UI.updateVillageLoadingMessage(`Loading ${p} (${idx}/${players.length})...`);
+            const cache = window.CAP.State.getPlayerVillages(p);
+            const doAdd = villages => {
+                Object.values(villages).forEach(v => {
+                    if (!window.CAP.State.getTargetVillages().has(v.coords)) {
+                        window.CAP.State.addTargetVillage(v.coords, v.name, v.player);
+                        total++;
+                    }
+                });
+                window.CAP.UI.updateTargetVillagesDisplay();
+                setTimeout(next, cache.length ? 200 : 1000);
             };
+            if (Object.keys(cache).length) {
+                doAdd(cache);
+            } else {
+                window.CAP.Validation.getPlayerVillages(p)
+                    .then(v => {
+                        window.CAP.State.setPlayerVillages(p, v);
+                        doAdd(v);
+                    })
+                    .catch(err => {
+                        errors.push(`${p}: ${err}`);
+                        console.error(err);
+                        setTimeout(next, 1000);
+                    });
+            }
+        }
+        next();
+    }
 
-            // Target village selection
-            document.getElementById('cap-add-coords').onclick = addTargetVillagesByCoords;
-            
-            document.getElementById('cap-target-coords').addEventListener('keypress', function(e) {
-                if (e.key === 'Enter') {
-                    e.preventDefault();
-                    addTargetVillagesByCoords();
+    function addTargetPlayer() {
+        const input = document.getElementById('cap-player-input');
+        const name = input.value.trim();
+        if (!name) return UI.ErrorMessage('Please enter a player name');
+        if (window.CAP.State.getTargetPlayers().has(name)) return UI.ErrorMessage('Player already added');
+
+        input.disabled = true;
+        const btn = document.getElementById('cap-add-player');
+        btn.disabled = true; btn.textContent = 'Checking...';
+
+        window.CAP.Validation.validatePlayer(name)
+            .then(() => {
+                window.CAP.State.addTargetPlayer(name);
+                window.CAP.State.addToRecentTargets(name);
+                input.value = '';
+                window.CAP.UI.updateTargetPlayersDisplay();
+                UI.SuccessMessage(`Player "${name}" added successfully`);
+            })
+            .catch(err => UI.ErrorMessage(err))
+            .finally(() => {
+                input.disabled = false;
+                btn.disabled = false;
+                btn.textContent = 'Add';
+            });
+    }
+
+    // Global UI callbacks
+    window.CAP = window.CAP || {};
+    window.CAP.removeTargetPlayer = name => {
+        window.CAP.State.removeTargetPlayer(name);
+        window.CAP.UI.updateTargetPlayersDisplay();
+    };
+    window.CAP.removeTargetVillage = coords => {
+        window.CAP.State.removeTargetVillage(coords);
+        window.CAP.UI.updateTargetVillagesDisplay();
+    };
+
+    // Add tribe members
+    window.CAP.addTribeMembers = function() {
+        const tribeTag = document.getElementById('tribe-input').value.trim();
+        if (!tribeTag) return UI.ErrorMessage('Please enter a tribe tag');
+
+        const tribeInput = document.getElementById('tribe-input');
+        const addBtn = document.getElementById('cap-add-tribe-confirm');
+        tribeInput.disabled = true;
+        if (addBtn) { addBtn.disabled = true; addBtn.textContent = 'Checking...'; }
+
+        window.CAP.Validation.validateTribe(tribeTag)
+            .then(members => {
+                Dialog.close();
+                let addedCount = 0;
+                members.forEach(playerName => {
+                    if (!window.CAP.State.getTargetPlayers().has(playerName)) {
+                        window.CAP.State.addTargetPlayer(playerName);
+                        window.CAP.State.addToRecentTargets(playerName);
+                        addedCount++;
+                    }
+                });
+                window.CAP.UI.updateTargetPlayersDisplay();
+                UI.SuccessMessage(`Added ${addedCount} players from tribe ${tribeTag}`);
+            })
+            .catch(error => {
+                UI.ErrorMessage(error);
+                tribeInput.disabled = false;
+                if (addBtn) {
+                    addBtn.disabled = false;
+                    addBtn.textContent = 'Add Tribe';
                 }
             });
+    };
 
-            document.getElementById('cap-add-all-villages').onclick = addAllTargetVillages;
-            document.getElementById('cap-clear-all-villages').onclick = clearAllTargetVillages;
-
-            document.getElementById('cap-target-player-dropdown').onchange = function() {
-                window.CAP.UI.updateTargetVillageDropdown(this.value);
-            };
-
-            document.getElementById('cap-add-selected-village').onclick = addSelectedTargetVillage;
-            document.getElementById('cap-add-all-player-villages').onclick = addAllPlayerVillages;
-
-            // Placeholder event handlers for other buttons
-            document.getElementById('cap-select-all-attackers').onclick = function() {
-                alert('Select all attackers - not implemented');
-            };
-
-            document.getElementById('cap-clear-attackers').onclick = function() {
-                alert('Clear attackers - not implemented');
-            };
-
-            document.getElementById('cap-add-coords').onclick = function() {
-                alert('Add coordinates - not implemented');
-            };
-
-            document.getElementById('cap-add-all-villages').onclick = function() {
-                const targetPlayers = window.CAP.State.getTargetPlayers();
-                if (targetPlayers.size === 0) {
-                    alert('Please select target players first');
-                    return;
-                }
-                alert('Add all villages from selected players - not implemented');
-            };
-
-            document.getElementById('cap-add-attack').onclick = function() {
-                alert('Add attack - not implemented');
-            };
-
-            document.getElementById('cap-mass-add').onclick = function() {
-                alert('Mass add - not implemented');
-            };
-
-            document.getElementById('cap-clear-attacks').onclick = function() {
-                alert('Clear attacks - not implemented');
-            };
-
-            document.getElementById('cap-preview').onclick = function() {
-                alert('Preview plan - not implemented');
-            };
-
-            document.getElementById('cap-export').onclick = function() {
-                alert('Export plan - not implemented');
-            };
-        };
-
-        // Bind events for initial modal
-        const bindInitialEvents = () => {
-            // Bind event handlers for initial modal
-            document.getElementById('cap-create-btn').onclick = function() {
-                Dialog.close();
-                window.CAP.UI.showPlanDesignPage();
-                bindPlanDesignEvents();
-                loadPlayerData();
-            };
-
-            document.getElementById('cap-import-btn').onclick = function() {
-                Dialog.close();
-                alert('Import mode not yet implemented.');
-            };
-        };
-
-        // Initialize the application
-        const init = () => {
-            window.CAP.UI.createModal();
-            bindInitialEvents();
-        };
-
-        // Export functions to global scope for onclick handlers
-        window.CAP.removeTargetPlayer = removeTargetPlayer;
-        window.CAP.removeTargetVillage = removeTargetVillage;
-        window.CAP.addTribeMembers = addTribeMembers;
-
-        return {
-            init
-        };
-    })();
+    // Load player data
+    function loadPlayerData() {
+        console.log('Loading player data...');
+    }
 
     // Run on script load
-    window.CAP.Main.init();
+    createModal();
 })();
