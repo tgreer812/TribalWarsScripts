@@ -1,5 +1,5 @@
 ﻿// Coordinated Attack Planner - Merged Build
-// Generated on: 2025-08-06 20:59:46
+// Generated on: 2025-08-06 21:07:20
 // This file is auto-generated. Do not edit directly.
 
 // ==================================================
@@ -14,7 +14,7 @@ window.CAP = window.CAP || {};
 window.CAP.State = (function() {
     // Application state
     let targetPlayers = new Set(); // Store selected target player names
-    let targetVillages = new Set(); // Store selected target village coordinates
+    let targetVillages = new Map(); // Store selected target villages: coords -> {coords, name, player}
     let attackingPlayer = null; // Store the attacking player name
     let attackingVillages = new Set(); // Store selected attacking villages
     let playerVillages = {}; // Store player's village data {playerId: {villageId: {name, coords, ...}}}
@@ -32,7 +32,7 @@ window.CAP.State = (function() {
 
     // Setters
     const setTargetPlayers = (players) => { targetPlayers = new Set(players); };
-    const setTargetVillages = (villages) => { targetVillages = new Set(villages); };
+    const setTargetVillages = (villages) => { targetVillages = new Map(villages); };
     const setAttackingPlayer = (playerName) => { attackingPlayer = playerName; };
     const setAttackingVillages = (villages) => { attackingVillages = new Set(villages); };
     const setPlayerVillages = (playerName, villages) => { playerVillages[playerName] = villages; };
@@ -48,12 +48,20 @@ window.CAP.State = (function() {
         targetPlayers.delete(playerName);
     };
 
-    const addTargetVillage = (villageCoords) => {
-        targetVillages.add(villageCoords);
+    const addTargetVillage = (coords, name = null, player = null) => {
+        targetVillages.set(coords, {
+            coords: coords,
+            name: name || coords,
+            player: player || 'Unknown'
+        });
     };
 
-    const removeTargetVillage = (villageCoords) => {
-        targetVillages.delete(villageCoords);
+    const removeTargetVillage = (coords) => {
+        targetVillages.delete(coords);
+    };
+
+    const clearTargetVillages = () => {
+        targetVillages.clear();
     };
 
     const addAttackingVillage = (villageId) => {
@@ -119,6 +127,7 @@ window.CAP.State = (function() {
         removeTargetPlayer,
         addTargetVillage,
         removeTargetVillage,
+        clearTargetVillages,
         addAttackingVillage,
         removeAttackingVillage,
         clearAll,
@@ -728,6 +737,7 @@ window.CAP.UI = (function() {
                     <div class="cap-form-group">
                         <label>From Players:</label>
                         <button class="cap-button cap-button-small" id="cap-add-all-villages">Add All Villages</button>
+                        <button class="cap-button cap-button-small" id="cap-clear-all-villages">Clear All</button>
                         <span style="color: #666; font-size: 11px; margin-left: 10px;">Adds all villages from selected target players</span>
                     </div>
                     <div class="cap-form-group">
@@ -740,6 +750,7 @@ window.CAP.UI = (function() {
                             <option value="">Select player first...</option>
                         </select>
                         <button class="cap-button cap-button-small" id="cap-add-selected-village">Add Village</button>
+                        <button class="cap-button cap-button-small" id="cap-add-all-player-villages">Add All</button>
                     </div>
                     <div class="cap-target-list" id="cap-target-villages">
                         <div style="color: #666; font-style: italic;">No target villages selected</div>
@@ -784,8 +795,8 @@ window.CAP.UI = (function() {
         Dialog.show('CoordinatedAttackPlanner', html);
     };
 
-    // Generic function to render items with remove functionality
-    const renderItemsWithRemove = (containerId, items, removeCallback, emptyMessage = 'No items selected') => {
+    // Generic function to render items with remove functionality - enhanced for villages
+    const renderItemsWithRemove = (containerId, items, removeCallback, emptyMessage = 'No items selected', isVillageList = false) => {
         const container = document.getElementById(containerId);
         
         if (!items || items.size === 0) {
@@ -794,14 +805,28 @@ window.CAP.UI = (function() {
         }
 
         let html = '';
-        items.forEach(item => {
-            html += `
-                <span class="cap-target-item">
-                    ${item}
-                    <span class="remove" onclick="${removeCallback}('${item}')" style="color: red; cursor: pointer; margin-left: 5px; font-weight: bold;">&times;</span>
-                </span>
-            `;
-        });
+        if (isVillageList) {
+            // For villages, items is a Map with coords -> {coords, name, player}
+            items.forEach((village, coords) => {
+                const displayText = village.name !== coords ? `${village.name} (${coords})` : coords;
+                html += `
+                    <span class="cap-target-item">
+                        ${displayText}
+                        <span class="remove" onclick="${removeCallback}('${coords}')" style="color: red; cursor: pointer; margin-left: 5px; font-weight: bold;">&times;</span>
+                    </span>
+                `;
+            });
+        } else {
+            // For regular items (players), items is a Set
+            items.forEach(item => {
+                html += `
+                    <span class="cap-target-item">
+                        ${item}
+                        <span class="remove" onclick="${removeCallback}('${item}')" style="color: red; cursor: pointer; margin-left: 5px; font-weight: bold;">&times;</span>
+                    </span>
+                `;
+            });
+        }
         
         container.innerHTML = html;
     };
@@ -816,7 +841,7 @@ window.CAP.UI = (function() {
     // Update the target villages display
     const updateTargetVillagesDisplay = () => {
         const targetVillages = window.CAP.State.getTargetVillages();
-        renderItemsWithRemove('cap-target-villages', targetVillages, 'window.CAP.removeTargetVillage', 'No target villages selected');
+        renderItemsWithRemove('cap-target-villages', targetVillages, 'window.CAP.removeTargetVillage', 'No target villages selected', true);
     };
 
     // Update target player dropdown
@@ -1208,13 +1233,16 @@ window.CAP.UI = (function() {
                 }
             });
 
-            // Clear input
+            // Clear input and update display
             input.value = '';
-
-            // Update display
             window.CAP.UI.updateTargetVillagesDisplay();
 
             // Show feedback
+            showAddVillagesFeedback(addedCount, invalidCoords);
+        };
+
+        // Helper function for consistent feedback messages
+        const showAddVillagesFeedback = (addedCount, invalidCoords = []) => {
             if (addedCount > 0) {
                 UI.SuccessMessage(`Added ${addedCount} target village${addedCount > 1 ? 's' : ''}`);
             }
@@ -1235,9 +1263,29 @@ window.CAP.UI = (function() {
                 return;
             }
 
+            addVillagesFromPlayers(Array.from(targetPlayers), 'Adding villages from all target players...');
+        };
+
+        // Add all villages from currently selected player
+        const addAllPlayerVillages = () => {
+            const selectedPlayer = document.getElementById('cap-target-player-dropdown').value;
+            
+            if (!selectedPlayer) {
+                UI.ErrorMessage('Please select a player first');
+                return;
+            }
+
+            addVillagesFromPlayers([selectedPlayer], `Adding all villages from ${selectedPlayer}...`);
+        };
+
+        // Reusable function to add villages from multiple players
+        const addVillagesFromPlayers = (playerNames, statusMessage) => {
             let totalAdded = 0;
-            let playersProcessed = 0;
-            const totalPlayers = targetPlayers.size;
+            let processedCount = 0;
+            const totalPlayers = playerNames.length;
+
+            // Show loading message
+            UI.InfoMessage(statusMessage);
 
             // Function to process each player's villages
             const processPlayer = (playerName) => {
@@ -1248,7 +1296,7 @@ window.CAP.UI = (function() {
                         // Use cached villages
                         Object.values(existingVillages).forEach(village => {
                             if (!window.CAP.State.getTargetVillages().has(village.coords)) {
-                                window.CAP.State.addTargetVillage(village.coords);
+                                window.CAP.State.addTargetVillage(village.coords, village.name, playerName);
                                 totalAdded++;
                             }
                         });
@@ -1260,7 +1308,7 @@ window.CAP.UI = (function() {
                                 window.CAP.State.setPlayerVillages(playerName, villages);
                                 Object.values(villages).forEach(village => {
                                     if (!window.CAP.State.getTargetVillages().has(village.coords)) {
-                                        window.CAP.State.addTargetVillage(village.coords);
+                                        window.CAP.State.addTargetVillage(village.coords, village.name, playerName);
                                         totalAdded++;
                                     }
                                 });
@@ -1274,7 +1322,7 @@ window.CAP.UI = (function() {
             };
 
             // Process all players
-            const promises = Array.from(targetPlayers).map(processPlayer);
+            const promises = playerNames.map(processPlayer);
             
             Promise.all(promises).then(() => {
                 window.CAP.UI.updateTargetVillagesDisplay();
@@ -1285,6 +1333,7 @@ window.CAP.UI = (function() {
         // Add selected village from dropdown
         const addSelectedTargetVillage = () => {
             const villageCoords = document.getElementById('cap-target-village-dropdown').value;
+            const selectedPlayer = document.getElementById('cap-target-player-dropdown').value;
             
             if (!villageCoords) {
                 UI.ErrorMessage('Please select a village');
@@ -1296,13 +1345,25 @@ window.CAP.UI = (function() {
                 return;
             }
 
-            window.CAP.State.addTargetVillage(villageCoords);
+            // Get village name from player's village data
+            const playerVillages = window.CAP.State.getPlayerVillages(selectedPlayer);
+            const village = Object.values(playerVillages).find(v => v.coords === villageCoords);
+            const villageName = village ? village.name : villageCoords;
+
+            window.CAP.State.addTargetVillage(villageCoords, villageName, selectedPlayer);
             window.CAP.UI.updateTargetVillagesDisplay();
             
             // Reset dropdown selection
             document.getElementById('cap-target-village-dropdown').value = '';
             
-            UI.SuccessMessage(`Added target village ${villageCoords}`);
+            UI.SuccessMessage(`Added target village ${villageName} (${villageCoords})`);
+        };
+
+        // Clear all target villages
+        const clearAllTargetVillages = () => {
+            window.CAP.State.clearTargetVillages();
+            window.CAP.UI.updateTargetVillagesDisplay();
+            UI.SuccessMessage('Cleared all target villages');
         };
 
         // Remove a target village
@@ -1367,12 +1428,14 @@ window.CAP.UI = (function() {
             });
 
             document.getElementById('cap-add-all-villages').onclick = addAllTargetVillages;
+            document.getElementById('cap-clear-all-villages').onclick = clearAllTargetVillages;
 
             document.getElementById('cap-target-player-dropdown').onchange = function() {
                 window.CAP.UI.updateTargetVillageDropdown(this.value);
             };
 
             document.getElementById('cap-add-selected-village').onclick = addSelectedTargetVillage;
+            document.getElementById('cap-add-all-player-villages').onclick = addAllPlayerVillages;
 
             // Placeholder event handlers for other buttons
             document.getElementById('cap-select-all-attackers').onclick = function() {

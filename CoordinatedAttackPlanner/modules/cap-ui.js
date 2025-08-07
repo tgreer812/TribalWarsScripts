@@ -277,6 +277,7 @@ window.CAP.UI = (function() {
                     <div class="cap-form-group">
                         <label>From Players:</label>
                         <button class="cap-button cap-button-small" id="cap-add-all-villages">Add All Villages</button>
+                        <button class="cap-button cap-button-small" id="cap-clear-all-villages">Clear All</button>
                         <span style="color: #666; font-size: 11px; margin-left: 10px;">Adds all villages from selected target players</span>
                     </div>
                     <div class="cap-form-group">
@@ -289,6 +290,7 @@ window.CAP.UI = (function() {
                             <option value="">Select player first...</option>
                         </select>
                         <button class="cap-button cap-button-small" id="cap-add-selected-village">Add Village</button>
+                        <button class="cap-button cap-button-small" id="cap-add-all-player-villages">Add All</button>
                     </div>
                     <div class="cap-target-list" id="cap-target-villages">
                         <div style="color: #666; font-style: italic;">No target villages selected</div>
@@ -333,8 +335,8 @@ window.CAP.UI = (function() {
         Dialog.show('CoordinatedAttackPlanner', html);
     };
 
-    // Generic function to render items with remove functionality
-    const renderItemsWithRemove = (containerId, items, removeCallback, emptyMessage = 'No items selected') => {
+    // Generic function to render items with remove functionality - enhanced for villages
+    const renderItemsWithRemove = (containerId, items, removeCallback, emptyMessage = 'No items selected', isVillageList = false) => {
         const container = document.getElementById(containerId);
         
         if (!items || items.size === 0) {
@@ -343,14 +345,28 @@ window.CAP.UI = (function() {
         }
 
         let html = '';
-        items.forEach(item => {
-            html += `
-                <span class="cap-target-item">
-                    ${item}
-                    <span class="remove" onclick="${removeCallback}('${item}')" style="color: red; cursor: pointer; margin-left: 5px; font-weight: bold;">&times;</span>
-                </span>
-            `;
-        });
+        if (isVillageList) {
+            // For villages, items is a Map with coords -> {coords, name, player}
+            items.forEach((village, coords) => {
+                const displayText = village.name !== coords ? `${village.name} (${coords})` : coords;
+                html += `
+                    <span class="cap-target-item">
+                        ${displayText}
+                        <span class="remove" onclick="${removeCallback}('${coords}')" style="color: red; cursor: pointer; margin-left: 5px; font-weight: bold;">&times;</span>
+                    </span>
+                `;
+            });
+        } else {
+            // For regular items (players), items is a Set
+            items.forEach(item => {
+                html += `
+                    <span class="cap-target-item">
+                        ${item}
+                        <span class="remove" onclick="${removeCallback}('${item}')" style="color: red; cursor: pointer; margin-left: 5px; font-weight: bold;">&times;</span>
+                    </span>
+                `;
+            });
+        }
         
         container.innerHTML = html;
     };
@@ -365,7 +381,7 @@ window.CAP.UI = (function() {
     // Update the target villages display
     const updateTargetVillagesDisplay = () => {
         const targetVillages = window.CAP.State.getTargetVillages();
-        renderItemsWithRemove('cap-target-villages', targetVillages, 'window.CAP.removeTargetVillage', 'No target villages selected');
+        renderItemsWithRemove('cap-target-villages', targetVillages, 'window.CAP.removeTargetVillage', 'No target villages selected', true);
     };
 
     // Update target player dropdown

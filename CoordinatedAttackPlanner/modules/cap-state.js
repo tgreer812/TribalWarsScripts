@@ -6,7 +6,7 @@ window.CAP = window.CAP || {};
 window.CAP.State = (function() {
     // Application state
     let targetPlayers = new Set(); // Store selected target player names
-    let targetVillages = new Set(); // Store selected target village coordinates
+    let targetVillages = new Map(); // Store selected target villages: coords -> {coords, name, player}
     let attackingPlayer = null; // Store the attacking player name
     let attackingVillages = new Set(); // Store selected attacking villages
     let playerVillages = {}; // Store player's village data {playerId: {villageId: {name, coords, ...}}}
@@ -24,7 +24,7 @@ window.CAP.State = (function() {
 
     // Setters
     const setTargetPlayers = (players) => { targetPlayers = new Set(players); };
-    const setTargetVillages = (villages) => { targetVillages = new Set(villages); };
+    const setTargetVillages = (villages) => { targetVillages = new Map(villages); };
     const setAttackingPlayer = (playerName) => { attackingPlayer = playerName; };
     const setAttackingVillages = (villages) => { attackingVillages = new Set(villages); };
     const setPlayerVillages = (playerName, villages) => { playerVillages[playerName] = villages; };
@@ -40,12 +40,20 @@ window.CAP.State = (function() {
         targetPlayers.delete(playerName);
     };
 
-    const addTargetVillage = (villageCoords) => {
-        targetVillages.add(villageCoords);
+    const addTargetVillage = (coords, name = null, player = null) => {
+        targetVillages.set(coords, {
+            coords: coords,
+            name: name || coords,
+            player: player || 'Unknown'
+        });
     };
 
-    const removeTargetVillage = (villageCoords) => {
-        targetVillages.delete(villageCoords);
+    const removeTargetVillage = (coords) => {
+        targetVillages.delete(coords);
+    };
+
+    const clearTargetVillages = () => {
+        targetVillages.clear();
     };
 
     const addAttackingVillage = (villageId) => {
@@ -111,6 +119,7 @@ window.CAP.State = (function() {
         removeTargetPlayer,
         addTargetVillage,
         removeTargetVillage,
+        clearTargetVillages,
         addAttackingVillage,
         removeAttackingVillage,
         clearAll,
