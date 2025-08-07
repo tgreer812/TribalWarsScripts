@@ -14,7 +14,7 @@ $moduleFiles = @(
     ".\CoordinatedAttackPlanner\modules\cap-ui.js"
 )
 
-$mainFile = ".\CoordinatedAttackPlanner.js"
+$mainFile = ".\CoordinatedAttackPlanner\CoordinatedAttackPlanner.js"
 
 # Check if all source files exist
 $missingFiles = @()
