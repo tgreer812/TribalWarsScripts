@@ -656,6 +656,7 @@ window.FarmGod.Main = (function (Library, Translation) {
 
   const buildTable = function (plan) {
     let html = `<div class="vis farmGodContent"><h4>FarmGod</h4><table class="vis" width="100%">
+                <tr><td colspan="4" style="text-align:center;padding:10px;"><button id="farmGod_send_all" class="btn" style="padding:8px 20px;font-size:14px;margin-bottom:10px;">Send Farms</button></td></tr>
                 <tr><div id="FarmGodProgessbar" class="progress-bar live-progress-bar progress-bar-alive" style="width:98%;margin:5px auto;"><div style="background: rgb(146, 194, 0);"></div><span class="label" style="margin-top:0px;"></span></div></tr>
                 <tr><th style="text-align:center;">${t.table.origin}</th><th style="text-align:center;">${t.table.target}</th><th style="text-align:center;">${t.table.fields}</th><th style="text-align:center;">${t.table.farm}</th></tr>`;
 
@@ -686,15 +687,6 @@ window.FarmGod.Main = (function (Library, Translation) {
     }
 
     html += `</table></div>`;
-
-    // —— Inject our floating Send-all button —— 
-    html += `<button id="farmGod_send_all" class="btn" style="
-      position:fixed;
-      bottom:10px;
-      right:10px;
-      z-index:9999;
-      padding:10px 15px;
-    ">Send Farms</button>`;
 
     return html;
   };
