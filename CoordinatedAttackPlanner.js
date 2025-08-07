@@ -191,6 +191,136 @@
             window.CAP.UI.updateAttackingVillagesDisplay();
         };
 
+        // Add target villages by coordinates
+        const addTargetVillagesByCoords = () => {
+            const input = document.getElementById('cap-target-coords');
+            const coordsInput = input.value.trim();
+            
+            if (!coordsInput) {
+                UI.ErrorMessage('Please enter coordinates');
+                return;
+            }
+
+            // Parse comma-separated coordinates
+            const coordsList = coordsInput.split(',').map(coord => coord.trim());
+            let addedCount = 0;
+            let invalidCoords = [];
+
+            coordsList.forEach(coords => {
+                // Validate coordinate format
+                if (coords.match(/^\d{1,3}\|\d{1,3}$/)) {
+                    if (!window.CAP.State.getTargetVillages().has(coords)) {
+                        window.CAP.State.addTargetVillage(coords);
+                        addedCount++;
+                    }
+                } else if (coords) {
+                    invalidCoords.push(coords);
+                }
+            });
+
+            // Clear input
+            input.value = '';
+
+            // Update display
+            window.CAP.UI.updateTargetVillagesDisplay();
+
+            // Show feedback
+            if (addedCount > 0) {
+                UI.SuccessMessage(`Added ${addedCount} target village${addedCount > 1 ? 's' : ''}`);
+            }
+            if (invalidCoords.length > 0) {
+                UI.ErrorMessage(`Invalid coordinates: ${invalidCoords.join(', ')}`);
+            }
+            if (addedCount === 0 && invalidCoords.length === 0) {
+                UI.ErrorMessage('No new coordinates to add');
+            }
+        };
+
+        // Add all villages from all target players
+        const addAllTargetVillages = () => {
+            const targetPlayers = window.CAP.State.getTargetPlayers();
+            
+            if (targetPlayers.size === 0) {
+                UI.ErrorMessage('Please select target players first');
+                return;
+            }
+
+            let totalAdded = 0;
+            let playersProcessed = 0;
+            const totalPlayers = targetPlayers.size;
+
+            // Function to process each player's villages
+            const processPlayer = (playerName) => {
+                return new Promise((resolve) => {
+                    const existingVillages = window.CAP.State.getPlayerVillages(playerName);
+                    
+                    if (Object.keys(existingVillages).length > 0) {
+                        // Use cached villages
+                        Object.values(existingVillages).forEach(village => {
+                            if (!window.CAP.State.getTargetVillages().has(village.coords)) {
+                                window.CAP.State.addTargetVillage(village.coords);
+                                totalAdded++;
+                            }
+                        });
+                        resolve();
+                    } else {
+                        // Fetch villages for this player
+                        window.CAP.Validation.getPlayerVillages(playerName)
+                            .then(villages => {
+                                window.CAP.State.setPlayerVillages(playerName, villages);
+                                Object.values(villages).forEach(village => {
+                                    if (!window.CAP.State.getTargetVillages().has(village.coords)) {
+                                        window.CAP.State.addTargetVillage(village.coords);
+                                        totalAdded++;
+                                    }
+                                });
+                                resolve();
+                            })
+                            .catch(() => {
+                                resolve(); // Continue even if one player fails
+                            });
+                    }
+                });
+            };
+
+            // Process all players
+            const promises = Array.from(targetPlayers).map(processPlayer);
+            
+            Promise.all(promises).then(() => {
+                window.CAP.UI.updateTargetVillagesDisplay();
+                UI.SuccessMessage(`Added ${totalAdded} target villages from ${totalPlayers} player${totalPlayers > 1 ? 's' : ''}`);
+            });
+        };
+
+        // Add selected village from dropdown
+        const addSelectedTargetVillage = () => {
+            const villageCoords = document.getElementById('cap-target-village-dropdown').value;
+            
+            if (!villageCoords) {
+                UI.ErrorMessage('Please select a village');
+                return;
+            }
+
+            if (window.CAP.State.getTargetVillages().has(villageCoords)) {
+                UI.ErrorMessage('Village already added');
+                return;
+            }
+
+            window.CAP.State.addTargetVillage(villageCoords);
+            window.CAP.UI.updateTargetVillagesDisplay();
+            
+            // Reset dropdown selection
+            document.getElementById('cap-target-village-dropdown').value = '';
+            
+            UI.SuccessMessage(`Added target village ${villageCoords}`);
+        };
+
+        // Remove a target village
+        const removeTargetVillage = (villageCoords) => {
+            window.CAP.State.removeTargetVillage(villageCoords);
+            window.CAP.UI.updateTargetVillagesDisplay();
+        };
+
         // Bind events for plan design page
         const bindPlanDesignEvents = () => {
             // Back button
@@ -235,6 +365,24 @@
             document.getElementById('cap-add-tribe').onclick = function() {
                 window.CAP.UI.showAddTribeDialog();
             };
+
+            // Target village selection
+            document.getElementById('cap-add-coords').onclick = addTargetVillagesByCoords;
+            
+            document.getElementById('cap-target-coords').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    addTargetVillagesByCoords();
+                }
+            });
+
+            document.getElementById('cap-add-all-villages').onclick = addAllTargetVillages;
+
+            document.getElementById('cap-target-player-dropdown').onchange = function() {
+                window.CAP.UI.updateTargetVillageDropdown(this.value);
+            };
+
+            document.getElementById('cap-add-selected-village').onclick = addSelectedTargetVillage;
 
             // Placeholder event handlers for other buttons
             document.getElementById('cap-select-all-attackers').onclick = function() {
@@ -303,6 +451,7 @@
 
         // Export functions to global scope for onclick handlers
         window.CAP.removeTargetPlayer = removeTargetPlayer;
+        window.CAP.removeTargetVillage = removeTargetVillage;
         window.CAP.addTribeMembers = addTribeMembers;
 
         return {

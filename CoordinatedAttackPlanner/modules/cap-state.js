@@ -6,7 +6,7 @@ window.CAP = window.CAP || {};
 window.CAP.State = (function() {
     // Application state
     let targetPlayers = new Set(); // Store selected target player names
-    let targetVillages = new Set(); // Store selected target villages
+    let targetVillages = new Set(); // Store selected target village coordinates
     let attackingPlayer = null; // Store the attacking player name
     let attackingVillages = new Set(); // Store selected attacking villages
     let playerVillages = {}; // Store player's village data {playerId: {villageId: {name, coords, ...}}}
@@ -38,6 +38,14 @@ window.CAP.State = (function() {
 
     const removeTargetPlayer = (playerName) => {
         targetPlayers.delete(playerName);
+    };
+
+    const addTargetVillage = (villageCoords) => {
+        targetVillages.add(villageCoords);
+    };
+
+    const removeTargetVillage = (villageCoords) => {
+        targetVillages.delete(villageCoords);
     };
 
     const addAttackingVillage = (villageId) => {
@@ -101,6 +109,8 @@ window.CAP.State = (function() {
         // Utilities
         addTargetPlayer,
         removeTargetPlayer,
+        addTargetVillage,
+        removeTargetVillage,
         addAttackingVillage,
         removeAttackingVillage,
         clearAll,

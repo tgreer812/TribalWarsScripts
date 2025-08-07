@@ -145,7 +145,7 @@ window.CAP.UI = (function() {
                     font-size: 12px;
                 }
                 .cap-target-item .remove {
-                    color: #red;
+                    color: red;
                     cursor: pointer;
                     margin-left: 5px;
                     font-weight: bold;
@@ -167,10 +167,6 @@ window.CAP.UI = (function() {
                 }
                 .cap-village-checkbox input {
                     margin-right: 8px;
-                }
-                .cap-attacking-player {
-                    background: #e6ffe6;
-                    border: 2px solid #4CAF50;
                 }
                 .cap-attack-table {
                     width: 100%;
@@ -225,7 +221,7 @@ window.CAP.UI = (function() {
                 <h2 class="cap-title">Create Attack Plan</h2>
                 
                 <!-- Attacking Player Selection -->
-                <div class="cap-section cap-attacking-player">
+                <div class="cap-section">
                     <h3>1. Select Attacking Player (Plan Recipient)</h3>
                     <div class="cap-form-group">
                         <label>Player Name:</label>
@@ -274,7 +270,7 @@ window.CAP.UI = (function() {
                     <div class="cap-form-group">
                         <label>Add by Coords:</label>
                         <div class="cap-input-with-buttons">
-                            <input type="text" id="cap-target-coords" placeholder="XXX|YYY,XXX|YYY">
+                            <input type="text" id="cap-target-coords" placeholder="XXX|YYY,XXX|YYY (comma separated)">
                             <button class="cap-button cap-button-small" id="cap-add-coords">Add</button>
                         </div>
                     </div>
@@ -283,8 +279,19 @@ window.CAP.UI = (function() {
                         <button class="cap-button cap-button-small" id="cap-add-all-villages">Add All Villages</button>
                         <span style="color: #666; font-size: 11px; margin-left: 10px;">Adds all villages from selected target players</span>
                     </div>
-                    <div class="cap-village-list" id="cap-target-villages">
-                        No targets selected
+                    <div class="cap-form-group">
+                        <label>Select Player:</label>
+                        <select id="cap-target-player-dropdown" style="width: 150px;">
+                            <option value="">Choose player...</option>
+                        </select>
+                        <label style="width: 80px; margin-left: 10px;">Village:</label>
+                        <select id="cap-target-village-dropdown" style="width: 180px;" disabled>
+                            <option value="">Select player first...</option>
+                        </select>
+                        <button class="cap-button cap-button-small" id="cap-add-selected-village">Add Village</button>
+                    </div>
+                    <div class="cap-target-list" id="cap-target-villages">
+                        <div style="color: #666; font-style: italic;">No target villages selected</div>
                     </div>
                 </div>
 
@@ -326,27 +333,93 @@ window.CAP.UI = (function() {
         Dialog.show('CoordinatedAttackPlanner', html);
     };
 
-    // Update the target players display
-    const updateTargetPlayersDisplay = () => {
-        const container = document.getElementById('cap-target-players');
-        const targetPlayers = window.CAP.State.getTargetPlayers();
+    // Generic function to render items with remove functionality
+    const renderItemsWithRemove = (containerId, items, removeCallback, emptyMessage = 'No items selected') => {
+        const container = document.getElementById(containerId);
         
-        if (targetPlayers.size === 0) {
-            container.innerHTML = '<div style="color: #666; font-style: italic;">No target players selected</div>';
+        if (!items || items.size === 0) {
+            container.innerHTML = `<div style="color: #666; font-style: italic;">${emptyMessage}</div>`;
             return;
         }
 
         let html = '';
-        targetPlayers.forEach(playerName => {
+        items.forEach(item => {
             html += `
                 <span class="cap-target-item">
-                    ${playerName}
-                    <span class="remove" onclick="window.CAP.removeTargetPlayer('${playerName}')" style="color: red; cursor: pointer; margin-left: 5px; font-weight: bold;">&times;</span>
+                    ${item}
+                    <span class="remove" onclick="${removeCallback}('${item}')" style="color: red; cursor: pointer; margin-left: 5px; font-weight: bold;">&times;</span>
                 </span>
             `;
         });
         
         container.innerHTML = html;
+    };
+
+    // Update the target players display
+    const updateTargetPlayersDisplay = () => {
+        const targetPlayers = window.CAP.State.getTargetPlayers();
+        renderItemsWithRemove('cap-target-players', targetPlayers, 'window.CAP.removeTargetPlayer', 'No target players selected');
+        updateTargetPlayerDropdown();
+    };
+
+    // Update the target villages display
+    const updateTargetVillagesDisplay = () => {
+        const targetVillages = window.CAP.State.getTargetVillages();
+        renderItemsWithRemove('cap-target-villages', targetVillages, 'window.CAP.removeTargetVillage', 'No target villages selected');
+    };
+
+    // Update target player dropdown
+    const updateTargetPlayerDropdown = () => {
+        const dropdown = document.getElementById('cap-target-player-dropdown');
+        const targetPlayers = window.CAP.State.getTargetPlayers();
+        
+        let html = '<option value="">Choose player...</option>';
+        targetPlayers.forEach(playerName => {
+            html += `<option value="${playerName}">${playerName}</option>`;
+        });
+        
+        dropdown.innerHTML = html;
+        
+        // Reset village dropdown
+        document.getElementById('cap-target-village-dropdown').innerHTML = '<option value="">Select player first...</option>';
+        document.getElementById('cap-target-village-dropdown').disabled = true;
+    };
+
+    // Update target village dropdown based on selected player
+    const updateTargetVillageDropdown = (playerName) => {
+        const dropdown = document.getElementById('cap-target-village-dropdown');
+        
+        if (!playerName) {
+            dropdown.innerHTML = '<option value="">Select player first...</option>';
+            dropdown.disabled = true;
+            return;
+        }
+
+        const playerVillages = window.CAP.State.getPlayerVillages(playerName);
+        
+        if (Object.keys(playerVillages).length === 0) {
+            // Try to fetch villages for this player
+            window.CAP.Validation.getPlayerVillages(playerName)
+                .then(villages => {
+                    window.CAP.State.setPlayerVillages(playerName, villages);
+                    populateVillageDropdown(villages);
+                })
+                .catch(error => {
+                    dropdown.innerHTML = '<option value="">Failed to load villages</option>';
+                    dropdown.disabled = true;
+                });
+        } else {
+            populateVillageDropdown(playerVillages);
+        }
+
+        function populateVillageDropdown(villages) {
+            let html = '<option value="">Choose village...</option>';
+            Object.values(villages).forEach(village => {
+                html += `<option value="${village.coords}">${village.name} (${village.coords})</option>`;
+            });
+            dropdown.innerHTML = html;
+            dropdown.disabled = false;
+        }
     };
 
     // Show add tribe dialog
@@ -451,6 +524,9 @@ window.CAP.UI = (function() {
         createModal,
         showPlanDesignPage,
         updateTargetPlayersDisplay,
+        updateTargetVillagesDisplay,
+        updateTargetPlayerDropdown,
+        updateTargetVillageDropdown,
         updateAttackingVillagesDisplay,
         showAddTribeDialog,
         toggleSectionStates
