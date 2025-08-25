@@ -702,7 +702,9 @@ function initializeSnipeTiming() {
                     axe: 'Axe',
                     sword: 'Sword',
                     spear: 'Spear',
-                    archer: 'Archer'
+                    archer: 'Archer',
+                    ram: 'Ram',
+                    catapult: 'Catapult'
                 },
                 debug: 'Debug mode',
                 debugInfo: 'Debug Information',
@@ -1047,7 +1049,7 @@ function initializeSnipeTiming() {
         
         // Build unit checkboxes
         const buildUnitCheckboxes = function() {
-            const units = ['snob', 'heavy', 'light', 'marcher', 'axe', 'sword', 'spear', 'archer'];
+            const units = ['snob', 'heavy', 'light', 'marcher', 'axe', 'sword', 'spear', 'archer', 'ram', 'catapult'];
             let html = '';
             
             units.forEach(unit => {
@@ -1165,7 +1167,7 @@ function initializeSnipeTiming() {
         
         // Process village data from overview page
         const processVillageData = function($html) {
-            const skipUnits = ['ram', 'catapult', 'knight', 'militia']; // Skip non-sniping units
+            const skipUnits = ['knight', 'militia']; // Skip non-sniping units
             
             $html.find('#combined_table').find('.row_a, .row_b').each(function() {
                 const $row = $(this);
