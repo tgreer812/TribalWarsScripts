@@ -11,12 +11,14 @@ This script will help Tribal Wars players coordinate attacks from multiple villa
 As the codebase grows, the script will be organized into multiple modules for maintainability and clarity:
 
 ### Core Files Structure
-1. **CoordinatedAttackPlanner.js** - Main entry point and orchestration
-2. **cap-ui.js** - All UI components, styling, and DOM manipulation
-3. **cap-validation.js** - Player and tribe validation logic
-4. **cap-state.js** - State management and data structures
-5. **cap-export.js** - Export/import functionality (when implemented)
-6. **cap-execution.js** - Plan execution logic (when implemented)
+1. **CoordinatedAttackPlanner.js** - Main entry point and orchestration ✅
+2. **modules/cap-ui.js** - All UI components, styling, and DOM manipulation ✅
+3. **modules/cap-validation.js** - Player and tribe validation logic ✅
+4. **modules/cap-state.js** - State management and data structures ✅
+5. **modules/cap-export.js** - Export/import functionality (planned)
+6. **modules/cap-execution.js** - Plan execution logic (planned)
+7. **plan.schema.json** - JSON Schema for plan validation and documentation ✅
+8. **buildCoordinatedAttacker.ps1** - Build script for combining modules ✅
 
 ### Module Loading Strategy
 - **Main file** acts as orchestrator and loads other modules dynamically
@@ -28,6 +30,59 @@ As the codebase grows, the script will be organized into multiple modules for ma
 - **Maintainability** - Easier to find and modify specific functionality
 - **Testability** - Individual modules can be developed/tested independently
 - **Scalability** - Easy to add new features without touching existing code
+
+---
+
+## Plan Export Format & JSON Schema
+
+### JSON Structure
+The plan export format uses a well-defined JSON structure that is base64-encoded for sharing:
+
+```json
+{
+  "version": "1.0",
+  "createdAt": "2025-09-05T10:30:00.000Z",
+  "exportedAt": "2025-09-05T10:35:00.000Z",
+  "planName": "Operation Example",
+  "description": "Coordinated attack on enemy tribe",
+  "attacks": [
+    {
+      "id": "attack_1725534600_abc123def",
+      "attackingVillage": {
+        "id": 12345,
+        "name": "Village Name",
+        "coords": "500|500"
+      },
+      "targetVillage": {
+        "coords": "501|501",
+        "name": "Target Village",
+        "player": "Enemy Player"
+      },
+      "sendTime": "2025-09-05T12:00:00.000Z",
+      "template": "",
+      "slowestUnit": "",
+      "arrivalTime": "2025-09-05T12:30:00.000Z",
+      "distance": 1.414,
+      "notes": "Main attack"
+    }
+  ]
+}
+```
+
+### JSON Schema Validation
+- **Schema File:** `plan.schema.json` provides complete validation rules
+- **Validation Features:**
+  - Required field validation
+  - Format validation (coordinates, timestamps)
+  - Enum validation for unit types
+  - String length constraints
+  - Pattern matching for IDs and coordinates
+
+### Key Fields
+- **template** and **slowestUnit**: Empty strings during planning phase, filled during finalization
+- **sendTime**: When the attack should be sent (calculated from arrivalTime)
+- **arrivalTime**: When the attack should land (user-specified landing time)
+- **id**: Unique identifier with pattern `attack_\d+_[a-z0-9]+`
 
 ---
 
@@ -46,9 +101,11 @@ As the codebase grows, the script will be organized into multiple modules for ma
   - "Add Attack" button creates a new row for custom assignments.
   - "Mass Add" button allows adding attacks from every attacking village to every target village (useful for mass fakes).
 - **Set Desired Landing Time:**  
-  - For each target, specify the exact arrival time (server time, with ms precision).
+  - For each attack, specify the exact arrival time (landing time) in format YYYY-MM-DD HH:MM:SS (server time).
+  - The system validates that landing times are in the future.
 - **Assign Units/Templates:**  
-  - Template selection is **not** part of the plan. The user will select templates themselves at import/use time. The plan can leave the template field empty.
+  - Template selection is **not** part of the plan creation phase. Users will select templates during import/finalization.
+  - The plan exports with empty `template` and `slowestUnit` fields to be filled during finalization.
 
 ---
 
@@ -61,18 +118,19 @@ Operations (ops) may span hours or days, making it impractical to require users 
 ### Solution
 
 #### Plan Structure
-- Each attack entry in the plan JSON includes a `template` field.
-- When the plan is created by the planner, all `template` fields are initialized as empty strings (`""`).
-- The planner cannot modify the `template` fields via the UI; only the user (the plan recipient) can set these fields during the import/finalization phase.
+- Each attack entry in the plan JSON includes `template` and `slowestUnit` fields.
+- When the plan is created by the planner, all `template` and `slowestUnit` fields are initialized as empty strings (`""`).
+- The planner cannot modify these fields via the UI; only the user (the plan recipient) can set these fields during the import/finalization phase.
 
 #### Import & Template Assignment Workflow
 - When a user imports a plan:
-  - The script checks all `template` fields in the plan.
+  - The script checks all `template` and `slowestUnit` fields in the plan.
   - **If any `template` field is empty or references a template that does not exist in the user's account:**
     - The script displays a **Template Assignment Screen**.
     - The user is prompted to select a template for each attack (from their available in-game templates).
     - After all templates are assigned and validated, the user clicks a **"Finalize Plan"** button.
-    - The script updates the plan JSON with the selected templates and generates a new base64-encoded plan string.
+    - The script updates the plan JSON with the selected templates and determines the `slowestUnit` for each attack.
+    - The script generates a new base64-encoded plan string with the finalized data.
     - The user can save or export this finalized plan for later use.
   - **If all `template` fields are valid:**
     - The script displays the **Execution Screen** with calculated launch times, countdowns, and launch buttons.
@@ -194,25 +252,32 @@ Operations (ops) may span hours or days, making it impractical to require users 
 
 ## Development Phases
 
-### Phase 1: Core Infrastructure
+### Phase 1: Core Infrastructure ✅ COMPLETED
 - [x] Main entry point and UI framework
 - [x] Target player selection with validation
 - [x] Basic tribe functionality
-- [ ] **Next:** Split into modular files (cap-ui.js, cap-validation.js, cap-state.js)
+- [x] Split into modular files (cap-ui.js, cap-validation.js, cap-state.js)
+- [x] Build script for module combination
+- [x] JSON Schema definition for plan validation
 
-### Phase 2: Plan Creation
-- [ ] Village selection (attacking and target)
-- [ ] Attack configuration table
-- [ ] Landing time specification
-- [ ] Export functionality
+### Phase 2: Plan Creation ✅ COMPLETED
+- [x] Village selection (attacking and target)
+- [x] Attack configuration table with CRUD operations
+- [x] Individual attack addition with validation
+- [x] Mass attack creation (all-to-all combinations)
+- [x] Landing time specification and validation
+- [x] Duplicate attack prevention
+- [x] Attack management (add, remove, clear all)
+- [x] Progress feedback for batch operations
+- [ ] **Next:** Export functionality
 
-### Phase 3: Plan Execution
+### Phase 3: Plan Execution (PLANNED)
 - [ ] Import functionality
 - [ ] Template assignment screen
 - [ ] Execution screen with countdowns
 - [ ] Launch buttons and attack sending
 
-### Phase 4: Polish & Features
+### Phase 4: Polish & Features (PLANNED)
 - [ ] Error handling improvements
 - [ ] Performance optimizations
 - [ ] Additional customization options
@@ -238,6 +303,57 @@ Operations (ops) may span hours or days, making it impractical to require users 
 
 ---
 
+## Current Implementation Status
+
+### ✅ Completed Features
+
+#### Modular Architecture
+- **Separated concerns** into focused modules:
+  - `cap-state.js`: State management and data structures
+  - `cap-ui.js`: UI components, dialogs, and DOM manipulation
+  - `cap-validation.js`: Player and tribe validation logic
+- **Build system** with PowerShell script for module combination
+- **Error handling** and validation throughout the codebase
+
+#### Target & Village Selection
+- **Player validation** with API calls to verify player existence
+- **Tribe support** for adding all members of a tribe as targets
+- **Village selection** from verified players with dropdown UI
+- **Recent targets** persistence for quick access
+- **Flexible target management** (add/remove individual players and villages)
+
+#### Attack Management
+- **Individual attack creation** with validation and duplicate prevention
+- **Mass attack creation** for all-to-all combinations with:
+  - Time spreading (staggered landing times)
+  - Batch processing with progress feedback
+  - Preview functionality
+  - Duplicate detection and skipping
+- **Attack table display** with remove/edit actions
+- **State persistence** during session
+
+#### Data Validation
+- **Landing time validation** with future-time checking
+- **Coordinate format validation** (xxx|yyy pattern)
+- **Duplicate attack prevention** 
+- **Input sanitization** and error messaging
+
+#### JSON Schema
+- **Complete schema definition** in `plan.schema.json`
+- **Validation rules** for all plan fields
+- **Documentation** of export format structure
+- **Field constraints** and pattern matching
+
+### 🔄 Currently In Progress
+- **Plan export functionality** - Converting current plan state to base64-encoded JSON
+
+### 📋 Planned Next
+- Import functionality with template assignment workflow
+- Execution screen with launch time calculations and countdowns
+- Template validation and assignment UI
+
+---
+
 ## Next Steps
 
 1. ✅ Review and iterate on this spec.
@@ -245,7 +361,11 @@ Operations (ops) may span hours or days, making it impractical to require users 
 3. ✅ Define data structures for export/import.
 4. ✅ Plan module structure and integration with TWSDK.
 5. ✅ Begin implementation.
-6. **🔄 Current:** Split existing code into modular files for better maintainability.
+6. ✅ Split existing code into modular files for better maintainability.
+7. ✅ Implement attack management (add, remove, mass add).
+8. ✅ Create JSON Schema for plan validation.
+9. **🔄 Current:** Implement plan export functionality.
+10. **📋 Next:** Implement import and template assignment workflow.
 
 ---
 
