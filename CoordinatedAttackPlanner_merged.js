@@ -1,5 +1,5 @@
 ﻿// Coordinated Attack Planner - Merged Build
-// Generated on: 2025-09-05 18:45:01
+// Generated on: 2025-09-05 19:43:33
 // This file is auto-generated. Do not edit directly.
 
 // ==================================================
@@ -131,6 +131,104 @@ window.CAP.State = (function() {
         localStorage.setItem('cap-recent-targets', JSON.stringify(recent));
     };
 
+    // Plan export function
+    const exportPlan = (planName = '', description = '') => {
+        // Validate prerequisites
+        if (!attackingPlayer) {
+            return { isValid: false, error: 'No attacking player selected' };
+        }
+
+        if (attacks.length === 0) {
+            return { isValid: false, error: 'No attacks to export' };
+        }
+
+        try {
+            // Create timestamps
+            const now = new Date();
+            const nowISO = now.toISOString();
+
+            // Calculate distance for each attack
+            const calculateDistance = (coords1, coords2) => {
+                const [x1, y1] = coords1.split('|').map(Number);
+                const [x2, y2] = coords2.split('|').map(Number);
+                return Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+            };
+
+            // Convert attacks to schema format
+            const exportAttacks = attacks.map(attack => {
+                // Convert landingTime to ISO format for arrivalTime
+                const arrivalTime = new Date(attack.landingTime.replace(' ', 'T') + '.000Z').toISOString();
+                
+                // Calculate distance
+                const distance = calculateDistance(
+                    attack.attackingVillage.coords,
+                    attack.targetVillage.coords
+                );
+
+                return {
+                    id: attack.id,
+                    attackingVillage: {
+                        id: parseInt(attack.attackingVillage.id),
+                        name: attack.attackingVillage.name,
+                        coords: attack.attackingVillage.coords
+                    },
+                    targetVillage: {
+                        coords: attack.targetVillage.coords,
+                        name: attack.targetVillage.name,
+                        player: attack.targetVillage.player
+                    },
+                    sendTime: "", // Empty - calculated at import time
+                    template: "", // Empty - assigned during finalization
+                    slowestUnit: "", // Empty - assigned during finalization
+                    arrivalTime: arrivalTime,
+                    distance: Math.round(distance * 1000) / 1000, // Round to 3 decimal places
+                    notes: attack.notes || ""
+                };
+            });
+
+            // Create plan data structure
+            const planData = {
+                version: "1.0",
+                createdAt: nowISO,
+                exportedAt: nowISO,
+                planName: planName.trim(),
+                description: description.trim(),
+                attacks: exportAttacks
+            };
+
+            // Validate using version-specific validator
+            const validator = window.CAP.Validation.PlanValidators["1.0"];
+            if (!validator) {
+                return { isValid: false, error: 'Plan validator not found' };
+            }
+
+            const validation = validator.validate(planData);
+            if (!validation.isValid) {
+                return { 
+                    isValid: false, 
+                    error: 'Plan validation failed: ' + validation.errors.join('; ') 
+                };
+            }
+
+            // Convert to JSON and base64 encode
+            const jsonString = JSON.stringify(planData, null, 0);
+            const base64String = btoa(jsonString);
+
+            return {
+                isValid: true,
+                planData: planData,
+                base64: base64String,
+                attackCount: attacks.length
+            };
+
+        } catch (error) {
+            return { 
+                isValid: false, 
+                error: 'Export failed: ' + (error.message || 'Unknown error') 
+            };
+        }
+    };
+
     return {
         // Getters
         getTargetPlayers,
@@ -167,7 +265,10 @@ window.CAP.State = (function() {
         removeAttack,
         updateAttack,
         clearAttacks,
-        getAttackById
+        getAttackById,
+        
+        // Plan export
+        exportPlan
     };
 })();
 
@@ -482,10 +583,141 @@ window.CAP.Validation = (function() {
         });
     };
 
+    // Version-specific Plan Validators
+    const PlanValidators = {
+        "1.0": class PlanValidator_v1_0 {
+            static validate(planData) {
+                const errors = [];
+
+                // Check required fields
+                if (!planData.version) errors.push('Missing required field: version');
+                if (!planData.createdAt) errors.push('Missing required field: createdAt');
+                if (!planData.exportedAt) errors.push('Missing required field: exportedAt');
+                if (!planData.attacks || !Array.isArray(planData.attacks)) {
+                    errors.push('Missing or invalid required field: attacks (must be array)');
+                } else if (planData.attacks.length === 0) {
+                    errors.push('Plan must contain at least one attack');
+                }
+
+                // Validate version format
+                if (planData.version !== "1.0") {
+                    errors.push('Invalid version: expected "1.0"');
+                }
+
+                // Validate timestamp formats (basic check)
+                const timestampRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+                if (planData.createdAt && !timestampRegex.test(planData.createdAt)) {
+                    errors.push('Invalid createdAt timestamp format');
+                }
+                if (planData.exportedAt && !timestampRegex.test(planData.exportedAt)) {
+                    errors.push('Invalid exportedAt timestamp format');
+                }
+
+                // Validate optional fields (type checking)
+                if (planData.planName !== undefined && typeof planData.planName !== 'string') {
+                    errors.push('planName must be a string');
+                }
+                if (planData.description !== undefined && typeof planData.description !== 'string') {
+                    errors.push('description must be a string');
+                }
+
+                // Validate each attack
+                if (planData.attacks && Array.isArray(planData.attacks)) {
+                    planData.attacks.forEach((attack, index) => {
+                        const attackErrors = this.validateAttack(attack, index);
+                        errors.push(...attackErrors);
+                    });
+                }
+
+                return {
+                    isValid: errors.length === 0,
+                    errors: errors
+                };
+            }
+
+            static validateAttack(attack, index) {
+                const errors = [];
+                const prefix = `Attack ${index + 1}: `;
+
+                // Required fields
+                if (!attack.id) errors.push(prefix + 'Missing required field: id');
+                if (!attack.attackingVillage) errors.push(prefix + 'Missing required field: attackingVillage');
+                if (!attack.targetVillage) errors.push(prefix + 'Missing required field: targetVillage');
+                if (!attack.arrivalTime) errors.push(prefix + 'Missing required field: arrivalTime');
+
+                // Validate ID pattern
+                if (attack.id && !/^attack_\d+_[a-z0-9]+$/.test(attack.id)) {
+                    errors.push(prefix + 'Invalid id format (expected: attack_\\d+_[a-z0-9]+)');
+                }
+
+                // Validate attacking village
+                if (attack.attackingVillage) {
+                    if (!attack.attackingVillage.coords) {
+                        errors.push(prefix + 'Missing attackingVillage.coords');
+                    } else if (!/^\d{1,3}\|\d{1,3}$/.test(attack.attackingVillage.coords)) {
+                        errors.push(prefix + 'Invalid attackingVillage.coords format (expected: xxx|yyy)');
+                    }
+                    if (!attack.attackingVillage.name) {
+                        errors.push(prefix + 'Missing attackingVillage.name');
+                    }
+                    if (attack.attackingVillage.id !== undefined && 
+                        (!Number.isInteger(attack.attackingVillage.id) || attack.attackingVillage.id < 1)) {
+                        errors.push(prefix + 'attackingVillage.id must be a positive integer');
+                    }
+                }
+
+                // Validate target village
+                if (attack.targetVillage) {
+                    if (!attack.targetVillage.coords) {
+                        errors.push(prefix + 'Missing targetVillage.coords');
+                    } else if (!/^\d{1,3}\|\d{1,3}$/.test(attack.targetVillage.coords)) {
+                        errors.push(prefix + 'Invalid targetVillage.coords format (expected: xxx|yyy)');
+                    }
+                    if (!attack.targetVillage.name) {
+                        errors.push(prefix + 'Missing targetVillage.name');
+                    }
+                    if (!attack.targetVillage.player) {
+                        errors.push(prefix + 'Missing targetVillage.player');
+                    }
+                }
+
+                // Validate timestamp
+                const timestampRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+                if (attack.arrivalTime && !timestampRegex.test(attack.arrivalTime)) {
+                    errors.push(prefix + 'Invalid arrivalTime timestamp format');
+                }
+
+                // Validate sendTime (should be empty string or valid timestamp)
+                if (attack.sendTime !== undefined && attack.sendTime !== "" && !timestampRegex.test(attack.sendTime)) {
+                    errors.push(prefix + 'Invalid sendTime format (should be empty string or valid timestamp)');
+                }
+
+                // Validate template and slowestUnit (should be strings)
+                if (attack.template !== undefined && typeof attack.template !== 'string') {
+                    errors.push(prefix + 'template must be a string');
+                }
+                if (attack.slowestUnit !== undefined && typeof attack.slowestUnit !== 'string') {
+                    errors.push(prefix + 'slowestUnit must be a string');
+                }
+
+                // Validate optional fields
+                if (attack.notes !== undefined && typeof attack.notes !== 'string') {
+                    errors.push(prefix + 'notes must be a string');
+                }
+                if (attack.distance !== undefined && (typeof attack.distance !== 'number' || attack.distance < 0)) {
+                    errors.push(prefix + 'distance must be a non-negative number');
+                }
+
+                return errors;
+            }
+        }
+    };
+
     return {
         validatePlayer,
         validateTribe,
-        getPlayerVillages
+        getPlayerVillages,
+        PlanValidators
     };
 })();
 
@@ -734,6 +966,19 @@ window.CAP.UI = (function() {
             ${styles}
             <div class="cap-content">
                 <h2 class="cap-title">Create Attack Plan</h2>
+                
+                <!-- Plan Details -->
+                <div class="cap-section">
+                    <h3>Plan Details (Optional)</h3>
+                    <div class="cap-form-group">
+                        <label>Plan Name:</label>
+                        <input type="text" id="cap-plan-name" placeholder="Enter plan name..." maxlength="100" style="width: 300px;">
+                    </div>
+                    <div class="cap-form-group">
+                        <label>Description:</label>
+                        <input type="text" id="cap-plan-description" placeholder="Enter plan description..." maxlength="500" style="width: 400px;">
+                    </div>
+                </div>
                 
                 <!-- Attacking Player Selection -->
                 <div class="cap-section">
@@ -1366,6 +1611,63 @@ window.CAP.UI = (function() {
         `).join('');
     };
 
+    // Show export plan modal
+    const showExportPlanModal = (base64String, attackCount, planName) => {
+        const modal = `
+            <div class="cap-content">
+                <h2 class="cap-title">Export Plan</h2>
+                <div style="margin-bottom: 15px;">
+                    <strong>Plan exported successfully!</strong><br>
+                    Attacks: ${attackCount}<br>
+                    Plan: ${planName || 'Unnamed Plan'}
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <label for="cap-export-data" style="display: block; margin-bottom: 5px; font-weight: bold;">Base64 Plan Data:</label>
+                    <textarea id="cap-export-data" readonly style="width: 100%; height: 150px; padding: 5px; border: 1px solid #7D510F; border-radius: 2px; font-family: monospace; font-size: 12px; resize: vertical;">${base64String}</textarea>
+                </div>
+                <div style="margin-bottom: 15px; padding: 10px; background: rgba(255,215,0,0.1); border: 1px solid #DAA520; border-radius: 4px;">
+                    <strong>Instructions:</strong><br>
+                    1. Copy the base64 data above<br>
+                    2. Share this data with the plan recipient<br>
+                    3. They can import it using the "Import Plan" option
+                </div>
+                <div class="cap-button-container">
+                    <button class="cap-button" id="cap-copy-export">Copy to Clipboard</button>
+                    <button class="cap-button" id="cap-export-close">Close</button>
+                </div>
+            </div>
+        `;
+
+        Dialog.show('CoordinatedAttackPlanner', modal);
+
+        // Bind events
+        document.getElementById('cap-copy-export').onclick = function() {
+            const textarea = document.getElementById('cap-export-data');
+            textarea.select();
+            textarea.setSelectionRange(0, 99999); // For mobile devices
+            
+            try {
+                document.execCommand('copy');
+                this.textContent = 'Copied!';
+                this.style.background = '#90EE90';
+                setTimeout(() => {
+                    this.textContent = 'Copy to Clipboard';
+                    this.style.background = '';
+                }, 2000);
+            } catch (err) {
+                alert('Copy failed. Please manually select and copy the text.');
+            }
+        };
+
+        document.getElementById('cap-export-close').onclick = function() {
+            Dialog.close();
+        };
+
+        // Auto-select the textarea content for easy copying
+        document.getElementById('cap-export-data').focus();
+        document.getElementById('cap-export-data').select();
+    };
+
     return {
         createModal,
         showPlanDesignPage,
@@ -1381,7 +1683,8 @@ window.CAP.UI = (function() {
         showAddAttackDialog,
         showMassAddDialog,
         updateMassAddPreview,
-        updateAttackTable
+        updateAttackTable,
+        showExportPlanModal
     };
 })();
 
@@ -1446,7 +1749,7 @@ window.CAP.UI = (function() {
         document.getElementById('cap-mass-add').onclick     = showMassAddDialog;
         document.getElementById('cap-clear-attacks').onclick= clearAllAttacks;
         document.getElementById('cap-preview').onclick      = () => alert('Preview plan - not implemented');
-        document.getElementById('cap-export').onclick       = () => alert('Export plan - not implemented');
+        document.getElementById('cap-export').onclick       = exportPlan;
     }
 
     // Attacking player events
@@ -2076,6 +2379,29 @@ window.CAP.UI = (function() {
         
         // Start processing
         processNextBatch();
+    }
+
+    // Export plan functionality
+    function exportPlan() {
+        // Get plan details from UI
+        const planName = document.getElementById('cap-plan-name') ? 
+            document.getElementById('cap-plan-name').value.trim() : '';
+        const description = document.getElementById('cap-plan-description') ? 
+            document.getElementById('cap-plan-description').value.trim() : '';
+
+        // Call export function from state module
+        const exportResult = window.CAP.State.exportPlan(planName, description);
+
+        if (!exportResult.isValid) {
+            return UI.ErrorMessage(`Export failed: ${exportResult.error}`);
+        }
+
+        // Show export modal with the base64 data
+        window.CAP.UI.showExportPlanModal(
+            exportResult.base64, 
+            exportResult.attackCount, 
+            planName || 'Unnamed Plan'
+        );
     }
 
     // Run on script load

@@ -240,6 +240,19 @@ window.CAP.UI = (function() {
             <div class="cap-content">
                 <h2 class="cap-title">Create Attack Plan</h2>
                 
+                <!-- Plan Details -->
+                <div class="cap-section">
+                    <h3>Plan Details (Optional)</h3>
+                    <div class="cap-form-group">
+                        <label>Plan Name:</label>
+                        <input type="text" id="cap-plan-name" placeholder="Enter plan name..." maxlength="100" style="width: 300px;">
+                    </div>
+                    <div class="cap-form-group">
+                        <label>Description:</label>
+                        <input type="text" id="cap-plan-description" placeholder="Enter plan description..." maxlength="500" style="width: 400px;">
+                    </div>
+                </div>
+                
                 <!-- Attacking Player Selection -->
                 <div class="cap-section">
                     <h3>1. Select Attacking Player (Plan Recipient)</h3>
@@ -871,6 +884,63 @@ window.CAP.UI = (function() {
         `).join('');
     };
 
+    // Show export plan modal
+    const showExportPlanModal = (base64String, attackCount, planName) => {
+        const modal = `
+            <div class="cap-content">
+                <h2 class="cap-title">Export Plan</h2>
+                <div style="margin-bottom: 15px;">
+                    <strong>Plan exported successfully!</strong><br>
+                    Attacks: ${attackCount}<br>
+                    Plan: ${planName || 'Unnamed Plan'}
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <label for="cap-export-data" style="display: block; margin-bottom: 5px; font-weight: bold;">Base64 Plan Data:</label>
+                    <textarea id="cap-export-data" readonly style="width: 100%; height: 150px; padding: 5px; border: 1px solid #7D510F; border-radius: 2px; font-family: monospace; font-size: 12px; resize: vertical;">${base64String}</textarea>
+                </div>
+                <div style="margin-bottom: 15px; padding: 10px; background: rgba(255,215,0,0.1); border: 1px solid #DAA520; border-radius: 4px;">
+                    <strong>Instructions:</strong><br>
+                    1. Copy the base64 data above<br>
+                    2. Share this data with the plan recipient<br>
+                    3. They can import it using the "Import Plan" option
+                </div>
+                <div class="cap-button-container">
+                    <button class="cap-button" id="cap-copy-export">Copy to Clipboard</button>
+                    <button class="cap-button" id="cap-export-close">Close</button>
+                </div>
+            </div>
+        `;
+
+        Dialog.show('CoordinatedAttackPlanner', modal);
+
+        // Bind events
+        document.getElementById('cap-copy-export').onclick = function() {
+            const textarea = document.getElementById('cap-export-data');
+            textarea.select();
+            textarea.setSelectionRange(0, 99999); // For mobile devices
+            
+            try {
+                document.execCommand('copy');
+                this.textContent = 'Copied!';
+                this.style.background = '#90EE90';
+                setTimeout(() => {
+                    this.textContent = 'Copy to Clipboard';
+                    this.style.background = '';
+                }, 2000);
+            } catch (err) {
+                alert('Copy failed. Please manually select and copy the text.');
+            }
+        };
+
+        document.getElementById('cap-export-close').onclick = function() {
+            Dialog.close();
+        };
+
+        // Auto-select the textarea content for easy copying
+        document.getElementById('cap-export-data').focus();
+        document.getElementById('cap-export-data').select();
+    };
+
     return {
         createModal,
         showPlanDesignPage,
@@ -886,6 +956,7 @@ window.CAP.UI = (function() {
         showAddAttackDialog,
         showMassAddDialog,
         updateMassAddPreview,
-        updateAttackTable
+        updateAttackTable,
+        showExportPlanModal
     };
 })();

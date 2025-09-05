@@ -55,7 +55,7 @@
         document.getElementById('cap-mass-add').onclick     = showMassAddDialog;
         document.getElementById('cap-clear-attacks').onclick= clearAllAttacks;
         document.getElementById('cap-preview').onclick      = () => alert('Preview plan - not implemented');
-        document.getElementById('cap-export').onclick       = () => alert('Export plan - not implemented');
+        document.getElementById('cap-export').onclick       = exportPlan;
     }
 
     // Attacking player events
@@ -685,6 +685,29 @@
         
         // Start processing
         processNextBatch();
+    }
+
+    // Export plan functionality
+    function exportPlan() {
+        // Get plan details from UI
+        const planName = document.getElementById('cap-plan-name') ? 
+            document.getElementById('cap-plan-name').value.trim() : '';
+        const description = document.getElementById('cap-plan-description') ? 
+            document.getElementById('cap-plan-description').value.trim() : '';
+
+        // Call export function from state module
+        const exportResult = window.CAP.State.exportPlan(planName, description);
+
+        if (!exportResult.isValid) {
+            return UI.ErrorMessage(`Export failed: ${exportResult.error}`);
+        }
+
+        // Show export modal with the base64 data
+        window.CAP.UI.showExportPlanModal(
+            exportResult.base64, 
+            exportResult.attackCount, 
+            planName || 'Unnamed Plan'
+        );
     }
 
     // Run on script load

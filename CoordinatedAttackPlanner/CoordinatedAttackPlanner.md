@@ -58,7 +58,7 @@ The plan export format uses a well-defined JSON structure that is base64-encoded
         "name": "Target Village",
         "player": "Enemy Player"
       },
-      "sendTime": "2025-09-05T12:00:00.000Z",
+      "sendTime": "",
       "template": "",
       "slowestUnit": "",
       "arrivalTime": "2025-09-05T12:30:00.000Z",
@@ -80,7 +80,7 @@ The plan export format uses a well-defined JSON structure that is base64-encoded
 
 ### Key Fields
 - **template** and **slowestUnit**: Empty strings during planning phase, filled during finalization
-- **sendTime**: When the attack should be sent (calculated from arrivalTime)
+- **sendTime**: When the attack should be sent (empty during planning, calculated at import time)
 - **arrivalTime**: When the attack should land (user-specified landing time)
 - **id**: Unique identifier with pattern `attack_\d+_[a-z0-9]+`
 

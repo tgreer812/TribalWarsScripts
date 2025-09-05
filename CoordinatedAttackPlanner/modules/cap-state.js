@@ -123,6 +123,104 @@ window.CAP.State = (function() {
         localStorage.setItem('cap-recent-targets', JSON.stringify(recent));
     };
 
+    // Plan export function
+    const exportPlan = (planName = '', description = '') => {
+        // Validate prerequisites
+        if (!attackingPlayer) {
+            return { isValid: false, error: 'No attacking player selected' };
+        }
+
+        if (attacks.length === 0) {
+            return { isValid: false, error: 'No attacks to export' };
+        }
+
+        try {
+            // Create timestamps
+            const now = new Date();
+            const nowISO = now.toISOString();
+
+            // Calculate distance for each attack
+            const calculateDistance = (coords1, coords2) => {
+                const [x1, y1] = coords1.split('|').map(Number);
+                const [x2, y2] = coords2.split('|').map(Number);
+                return Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+            };
+
+            // Convert attacks to schema format
+            const exportAttacks = attacks.map(attack => {
+                // Convert landingTime to ISO format for arrivalTime
+                const arrivalTime = new Date(attack.landingTime.replace(' ', 'T') + '.000Z').toISOString();
+                
+                // Calculate distance
+                const distance = calculateDistance(
+                    attack.attackingVillage.coords,
+                    attack.targetVillage.coords
+                );
+
+                return {
+                    id: attack.id,
+                    attackingVillage: {
+                        id: parseInt(attack.attackingVillage.id),
+                        name: attack.attackingVillage.name,
+                        coords: attack.attackingVillage.coords
+                    },
+                    targetVillage: {
+                        coords: attack.targetVillage.coords,
+                        name: attack.targetVillage.name,
+                        player: attack.targetVillage.player
+                    },
+                    sendTime: "", // Empty - calculated at import time
+                    template: "", // Empty - assigned during finalization
+                    slowestUnit: "", // Empty - assigned during finalization
+                    arrivalTime: arrivalTime,
+                    distance: Math.round(distance * 1000) / 1000, // Round to 3 decimal places
+                    notes: attack.notes || ""
+                };
+            });
+
+            // Create plan data structure
+            const planData = {
+                version: "1.0",
+                createdAt: nowISO,
+                exportedAt: nowISO,
+                planName: planName.trim(),
+                description: description.trim(),
+                attacks: exportAttacks
+            };
+
+            // Validate using version-specific validator
+            const validator = window.CAP.Validation.PlanValidators["1.0"];
+            if (!validator) {
+                return { isValid: false, error: 'Plan validator not found' };
+            }
+
+            const validation = validator.validate(planData);
+            if (!validation.isValid) {
+                return { 
+                    isValid: false, 
+                    error: 'Plan validation failed: ' + validation.errors.join('; ') 
+                };
+            }
+
+            // Convert to JSON and base64 encode
+            const jsonString = JSON.stringify(planData, null, 0);
+            const base64String = btoa(jsonString);
+
+            return {
+                isValid: true,
+                planData: planData,
+                base64: base64String,
+                attackCount: attacks.length
+            };
+
+        } catch (error) {
+            return { 
+                isValid: false, 
+                error: 'Export failed: ' + (error.message || 'Unknown error') 
+            };
+        }
+    };
+
     return {
         // Getters
         getTargetPlayers,
@@ -159,6 +257,9 @@ window.CAP.State = (function() {
         removeAttack,
         updateAttack,
         clearAttacks,
-        getAttackById
+        getAttackById,
+        
+        // Plan export
+        exportPlan
     };
 })();
