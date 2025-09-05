@@ -52,7 +52,7 @@
 
         // Attack management handlers
         document.getElementById('cap-add-attack').onclick   = showAddAttackDialog;
-        document.getElementById('cap-mass-add').onclick     = () => alert('Mass add - not implemented');
+        document.getElementById('cap-mass-add').onclick     = showMassAddDialog;
         document.getElementById('cap-clear-attacks').onclick= clearAllAttacks;
         document.getElementById('cap-preview').onclick      = () => alert('Preview plan - not implemented');
         document.getElementById('cap-export').onclick       = () => alert('Export plan - not implemented');
@@ -338,60 +338,35 @@
         console.log('Loading player data...');
     }
 
-    // Attack management functions
-    function showAddAttackDialog() {
-        // Validate prerequisites
+    // Helper functions for attack management
+    function validatePrerequisites() {
         const attackingPlayer = window.CAP.State.getAttackingPlayer();
         if (!attackingPlayer) {
-            return UI.ErrorMessage('Please select an attacking player first');
+            return { isValid: false, message: 'Please select an attacking player first' };
         }
 
         const attackingVillages = window.CAP.State.getAttackingVillages();
         if (attackingVillages.size === 0) {
-            return UI.ErrorMessage('Please select at least one attacking village first');
+            return { isValid: false, message: 'Please select at least one attacking village first' };
         }
 
         const targetVillages = window.CAP.State.getTargetVillages();
         if (targetVillages.size === 0) {
-            return UI.ErrorMessage('Please select at least one target village first');
+            return { isValid: false, message: 'Please select at least one target village first' };
         }
 
-        // Show the dialog
-        window.CAP.UI.showAddAttackDialog();
-
-        // Bind dialog events
-        document.getElementById('cap-attack-cancel').onclick = function() {
-            Dialog.close();
-        };
-
-        document.getElementById('cap-attack-save').onclick = function() {
-            saveNewAttack();
-        };
+        return { isValid: true };
     }
 
-    function saveNewAttack() {
-        const attackingVillageId = document.getElementById('cap-attack-attacking-village').value;
-        const targetVillageCoords = document.getElementById('cap-attack-target-village').value;
-        const landingTime = document.getElementById('cap-attack-landing-time').value.trim();
-        const notes = document.getElementById('cap-attack-notes').value.trim();
-
-        // Validate inputs
-        if (!attackingVillageId) {
-            return UI.ErrorMessage('Please select an attacking village');
-        }
-
-        if (!targetVillageCoords) {
-            return UI.ErrorMessage('Please select a target village');
-        }
-
+    function validateLandingTime(landingTime) {
         if (!landingTime) {
-            return UI.ErrorMessage('Please enter a landing time');
+            return { isValid: false, message: 'Please enter a landing time' };
         }
 
         // Validate landing time format
         const timeRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
         if (!timeRegex.test(landingTime)) {
-            return UI.ErrorMessage('Invalid landing time format. Please use YYYY-MM-DD HH:MM:SS');
+            return { isValid: false, message: 'Invalid landing time format. Please use YYYY-MM-DD HH:MM:SS' };
         }
 
         // Validate landing time is in the future
@@ -414,9 +389,13 @@
         }
         
         if (landingDate <= serverTime) {
-            return UI.ErrorMessage('Landing time must be in the future');
+            return { isValid: false, message: 'Landing time must be in the future' };
         }
 
+        return { isValid: true, serverTime: serverTime };
+    }
+
+    function createAttackObject(attackingVillageId, targetVillageCoords, landingTime, notes = '') {
         // Get village details
         const attackingPlayer = window.CAP.State.getAttackingPlayer();
         const playerVillages = window.CAP.State.getPlayerVillages(attackingPlayer);
@@ -426,23 +405,11 @@
         const targetVillage = targetVillages.get(targetVillageCoords);
 
         if (!attackingVillage) {
-            return UI.ErrorMessage('Selected attacking village not found');
+            return { isValid: false, message: 'Selected attacking village not found' };
         }
 
         if (!targetVillage) {
-            return UI.ErrorMessage('Selected target village not found');
-        }
-
-        // Check for duplicate attacks (same attacking village + target village + time)
-        const existingAttacks = window.CAP.State.getAttacks();
-        const duplicate = existingAttacks.find(attack => 
-            attack.attackingVillage.id === attackingVillageId &&
-            attack.targetVillage.coords === targetVillageCoords &&
-            attack.landingTime === landingTime
-        );
-
-        if (duplicate) {
-            return UI.ErrorMessage('An identical attack (same attacking village, target, and time) already exists');
+            return { isValid: false, message: 'Selected target village not found' };
         }
 
         // Create attack object
@@ -462,8 +429,92 @@
             template: '' // Empty initially, filled during plan execution
         };
 
+        return { isValid: true, attack: attack };
+    }
+
+    function checkDuplicateAttack(attackingVillageId, targetVillageCoords, landingTime) {
+        const existingAttacks = window.CAP.State.getAttacks();
+        return existingAttacks.find(attack => 
+            attack.attackingVillage.id === attackingVillageId &&
+            attack.targetVillage.coords === targetVillageCoords &&
+            attack.landingTime === landingTime
+        );
+    }
+
+    function generateAttackCombinations() {
+        const attackingVillages = window.CAP.State.getAttackingVillages();
+        const targetVillages = window.CAP.State.getTargetVillages();
+        const attackingPlayer = window.CAP.State.getAttackingPlayer();
+        const playerVillages = window.CAP.State.getPlayerVillages(attackingPlayer);
+        
+        const combinations = [];
+        
+        attackingVillages.forEach(attackingVillageId => {
+            const attackingVillage = playerVillages[attackingVillageId];
+            if (attackingVillage) {
+                targetVillages.forEach((targetVillage, targetCoords) => {
+                    combinations.push({
+                        attackingVillageId: attackingVillageId,
+                        attackingVillageName: attackingVillage.name,
+                        attackingVillageCoords: attackingVillage.coords,
+                        targetVillageCoords: targetCoords,
+                        targetVillageName: targetVillage.name,
+                        targetVillagePlayer: targetVillage.player
+                    });
+                });
+            }
+        });
+        
+        return combinations;
+    }
+
+    // Attack management functions
+    function showAddAttackDialog() {
+        // Validate prerequisites
+        const validation = validatePrerequisites();
+        if (!validation.isValid) {
+            return UI.ErrorMessage(validation.message);
+        }
+
+        // Show the dialog
+        window.CAP.UI.showAddAttackDialog();
+
+        // Bind dialog events
+        document.getElementById('cap-attack-cancel').onclick = function() {
+            Dialog.close();
+        };
+
+        document.getElementById('cap-attack-save').onclick = function() {
+            saveNewAttack();
+        };
+    }
+
+    function saveNewAttack() {
+        const attackingVillageId = document.getElementById('cap-attack-attacking-village').value;
+        const targetVillageCoords = document.getElementById('cap-attack-target-village').value;
+        const landingTime = document.getElementById('cap-attack-landing-time').value.trim();
+        const notes = document.getElementById('cap-attack-notes').value.trim();
+
+        // Validate landing time
+        const landingTimeValidation = validateLandingTime(landingTime);
+        if (!landingTimeValidation.isValid) {
+            return UI.ErrorMessage(landingTimeValidation.message);
+        }
+
+        // Check for duplicate attacks
+        const duplicate = checkDuplicateAttack(attackingVillageId, targetVillageCoords, landingTime);
+        if (duplicate) {
+            return UI.ErrorMessage('An identical attack (same attacking village, target, and time) already exists');
+        }
+
+        // Create attack object
+        const attackObject = createAttackObject(attackingVillageId, targetVillageCoords, landingTime, notes);
+        if (!attackObject.isValid) {
+            return UI.ErrorMessage(attackObject.message);
+        }
+
         // Add attack to state
-        window.CAP.State.addAttack(attack);
+        window.CAP.State.addAttack(attackObject.attack);
         
         // Update UI
         window.CAP.UI.updateAttackTable();
@@ -484,6 +535,156 @@
             window.CAP.UI.updateAttackTable();
             UI.SuccessMessage('All attacks cleared');
         }
+    }
+
+    // Mass Add functions
+    function showMassAddDialog() {
+        // Validate prerequisites
+        const validation = validatePrerequisites();
+        if (!validation.isValid) {
+            return UI.ErrorMessage(validation.message);
+        }
+
+        // Show the dialog
+        window.CAP.UI.showMassAddDialog();
+
+        // Bind dialog events
+        document.getElementById('cap-mass-add-cancel').onclick = function() {
+            Dialog.close();
+        };
+
+        document.getElementById('cap-mass-add-save').onclick = function() {
+            saveMassAttacks();
+        };
+
+        // Bind preview update to time spread changes
+        document.getElementById('cap-mass-add-time-spread').oninput = function() {
+            window.CAP.UI.updateMassAddPreview();
+        };
+    }
+
+    function saveMassAttacks() {
+        const landingTime = document.getElementById('cap-mass-add-landing-time').value.trim();
+        const timeSpread = parseInt(document.getElementById('cap-mass-add-time-spread').value) || 0;
+        const globalNotes = document.getElementById('cap-mass-add-notes').value.trim();
+
+        // Validate landing time
+        const landingTimeValidation = validateLandingTime(landingTime);
+        if (!landingTimeValidation.isValid) {
+            return UI.ErrorMessage(landingTimeValidation.message);
+        }
+
+        // Generate all attack combinations
+        const combinations = generateAttackCombinations();
+        
+        if (combinations.length === 0) {
+            return UI.ErrorMessage('No attack combinations found');
+        }
+
+        // Show confirmation for large batches
+        if (combinations.length > 20) {
+            if (!confirm(`This will create ${combinations.length} attacks. Are you sure you want to continue?`)) {
+                return;
+            }
+        }
+
+        // Disable the save button and show progress
+        const saveBtn = document.getElementById('cap-mass-add-save');
+        const originalText = saveBtn.textContent;
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Creating attacks...';
+
+        let createdCount = 0;
+        let skippedCount = 0;
+        let errorCount = 0;
+        const errors = [];
+
+        // Process attacks in batches to avoid blocking UI
+        let index = 0;
+        
+        function processNextBatch() {
+            const batchSize = 10; // Process 10 attacks at a time
+            const batchEnd = Math.min(index + batchSize, combinations.length);
+            
+            for (let i = index; i < batchEnd; i++) {
+                const combo = combinations[i];
+                
+                // Calculate time offset
+                const offsetSeconds = i * timeSpread;
+                const attackLandingTime = new Date(landingTime.replace(' ', 'T'));
+                attackLandingTime.setSeconds(attackLandingTime.getSeconds() + offsetSeconds);
+                const formattedLandingTime = attackLandingTime.toISOString().slice(0, 19).replace('T', ' ');
+                
+                // Check for duplicates
+                const duplicate = checkDuplicateAttack(combo.attackingVillageId, combo.targetVillageCoords, formattedLandingTime);
+                if (duplicate) {
+                    skippedCount++;
+                    continue;
+                }
+                
+                // Create attack object
+                const attackObject = createAttackObject(
+                    combo.attackingVillageId, 
+                    combo.targetVillageCoords, 
+                    formattedLandingTime, 
+                    globalNotes
+                );
+                
+                if (attackObject.isValid) {
+                    window.CAP.State.addAttack(attackObject.attack);
+                    createdCount++;
+                } else {
+                    errorCount++;
+                    errors.push(`${combo.attackingVillageName} → ${combo.targetVillageName}: ${attackObject.message}`);
+                }
+            }
+            
+            index = batchEnd;
+            
+            // Update progress
+            saveBtn.textContent = `Creating attacks... (${index}/${combinations.length})`;
+            
+            if (index < combinations.length) {
+                // Continue processing next batch
+                setTimeout(processNextBatch, 10);
+            } else {
+                // Finished processing all attacks
+                finishMassAdd();
+            }
+        }
+        
+        function finishMassAdd() {
+            // Re-enable button
+            saveBtn.disabled = false;
+            saveBtn.textContent = originalText;
+            
+            // Update UI
+            window.CAP.UI.updateAttackTable();
+            
+            // Close dialog
+            Dialog.close();
+            
+            // Show summary
+            let message = `Mass Add Complete: Created ${createdCount} attacks`;
+            
+            if (skippedCount > 0) {
+                message += `, skipped ${skippedCount} duplicates`;
+            }
+            
+            if (errorCount > 0) {
+                message += `, ${errorCount} errors occurred`;
+                console.warn('Mass Add Errors:', errors);
+            }
+            
+            if (errorCount > 0) {
+                UI.ErrorMessage(message + '. Check console for error details.');
+            } else {
+                UI.SuccessMessage(message);
+            }
+        }
+        
+        // Start processing
+        processNextBatch();
     }
 
     // Run on script load

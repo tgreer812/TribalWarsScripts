@@ -705,6 +705,146 @@ window.CAP.UI = (function() {
         Dialog.show('AddAttack', html);
     };
 
+    // Show mass add dialog
+    const showMassAddDialog = () => {
+        const styles = `
+            <style>
+                .cap-mass-add-form {
+                    padding: 20px;
+                    background: url('graphic/index/main_bg.jpg') 100% 0% #E3D5B3;
+                    border: 2px solid #7D510F;
+                    border-radius: 8px;
+                }
+                .cap-mass-add-form h3 {
+                    color: #7D510F;
+                    margin-bottom: 15px;
+                    font-size: 16px;
+                }
+                .cap-mass-add-form-group {
+                    margin-bottom: 15px;
+                }
+                .cap-mass-add-form-group label {
+                    display: block;
+                    margin-bottom: 5px;
+                    font-weight: bold;
+                    color: #5D4037;
+                }
+                .cap-mass-add-form input,
+                .cap-mass-add-form textarea,
+                .cap-mass-add-form select {
+                    width: 100%;
+                    padding: 8px;
+                    border: 1px solid #7D510F;
+                    border-radius: 4px;
+                    font-size: 12px;
+                    box-sizing: border-box;
+                }
+                .cap-mass-add-form textarea {
+                    height: 60px;
+                    resize: vertical;
+                }
+                .cap-mass-add-preview {
+                    background: #f5f5f5;
+                    border: 1px solid #ccc;
+                    border-radius: 4px;
+                    padding: 10px;
+                    margin: 10px 0;
+                    font-weight: bold;
+                    color: #333;
+                }
+                .cap-mass-add-dialog-buttons {
+                    display: flex;
+                    justify-content: flex-end;
+                    gap: 10px;
+                    margin-top: 20px;
+                }
+                .cap-time-spread-group {
+                    display: flex;
+                    align-items: center;
+                    gap: 10px;
+                }
+                .cap-time-spread-group input {
+                    width: 80px;
+                }
+            </style>
+        `;
+
+        // Get current server time for default landing time
+        const now = new Date();
+        
+        // Safely get server time - fallback to local time if server_utc_diff is not available
+        let serverTime;
+        try {
+            const utcDiff = (typeof game_data !== 'undefined' && game_data.server_utc_diff) ? 
+                game_data.server_utc_diff : 0;
+            serverTime = new Date(now.getTime() + (utcDiff * 1000));
+            
+            // Validate the server time is valid
+            if (isNaN(serverTime.getTime())) {
+                serverTime = now; // Fallback to local time
+            }
+        } catch (e) {
+            serverTime = now; // Fallback to local time
+        }
+        
+        const defaultTime = new Date(serverTime.getTime() + 60 * 60 * 1000); // 1 hour from now
+        const defaultTimeStr = defaultTime.toISOString().slice(0, 19).replace('T', ' ');
+
+        const html = `
+            ${styles}
+            <div class="cap-mass-add-form">
+                <h3>Mass Add Attacks (All to All)</h3>
+                <div id="cap-mass-add-preview" class="cap-mass-add-preview">
+                    Loading preview...
+                </div>
+                <div class="cap-mass-add-form-group">
+                    <label for="cap-mass-add-landing-time">Landing Time (Server Time):</label>
+                    <input type="text" id="cap-mass-add-landing-time" value="${defaultTimeStr}" placeholder="YYYY-MM-DD HH:MM:SS">
+                    <small style="display: block; margin-top: 5px; color: #666;">Format: YYYY-MM-DD HH:MM:SS (e.g., 2025-09-05 15:30:00)</small>
+                </div>
+                <div class="cap-mass-add-form-group">
+                    <label for="cap-mass-add-time-spread">Time Spreading (Optional):</label>
+                    <div class="cap-time-spread-group">
+                        <input type="number" id="cap-mass-add-time-spread" value="0" min="0" max="3600" placeholder="0">
+                        <span>seconds between attacks</span>
+                    </div>
+                    <small style="display: block; margin-top: 5px; color: #666;">Each attack will be offset by this many seconds (e.g., 10 seconds = attacks at +0s, +10s, +20s, etc.)</small>
+                </div>
+                <div class="cap-mass-add-form-group">
+                    <label for="cap-mass-add-notes">Global Notes (Optional):</label>
+                    <textarea id="cap-mass-add-notes" placeholder="These notes will be applied to all attacks..."></textarea>
+                </div>
+                <div class="cap-mass-add-dialog-buttons">
+                    <button class="cap-button" id="cap-mass-add-cancel">Cancel</button>
+                    <button class="cap-button" id="cap-mass-add-save">Create All Attacks</button>
+                </div>
+            </div>
+        `;
+
+        Dialog.show('MassAddAttacks', html);
+        
+        // Update preview immediately
+        updateMassAddPreview();
+    };
+
+    // Update mass add preview
+    const updateMassAddPreview = () => {
+        const attackingVillages = window.CAP.State.getAttackingVillages();
+        const targetVillages = window.CAP.State.getTargetVillages();
+        
+        const attackerCount = attackingVillages.size;
+        const targetCount = targetVillages.size;
+        const totalAttacks = attackerCount * targetCount;
+        
+        const previewElement = document.getElementById('cap-mass-add-preview');
+        if (previewElement) {
+            previewElement.innerHTML = `
+                <strong>Preview:</strong> ${attackerCount} attacking villages × ${targetCount} target villages = 
+                <span style="color: #7D510F;">${totalAttacks} total attacks</span>
+            `;
+        }
+    };
+
     // Update attack table display
     const updateAttackTable = () => {
         const tbody = document.getElementById('cap-attack-list');
@@ -744,6 +884,8 @@ window.CAP.UI = (function() {
         showVillageLoadingIndicator,
         updateVillageLoadingMessage,
         showAddAttackDialog,
+        showMassAddDialog,
+        updateMassAddPreview,
         updateAttackTable
     };
 })();
