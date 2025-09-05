@@ -574,10 +574,161 @@ window.CAP.UI = (function() {
 
     // Update loading indicator message
     const updateVillageLoadingMessage = (message) => {
-        const indicator = document.getElementById('cap-loading-all-villages');
-        if (indicator && indicator.style.display !== 'none') {
-            indicator.innerHTML = `<span class="cap-spinner"></span>${message}`;
+        const indicator = document.getElementById('cap-village-loading');
+        if (indicator) {
+            indicator.textContent = message;
         }
+    };
+
+    // Show add attack dialog
+    const showAddAttackDialog = () => {
+        const styles = `
+            <style>
+                .cap-attack-form {
+                    padding: 20px;
+                    background: url('graphic/index/main_bg.jpg') 100% 0% #E3D5B3;
+                    border: 2px solid #7D510F;
+                    border-radius: 8px;
+                }
+                .cap-attack-form h3 {
+                    color: #7D510F;
+                    margin-bottom: 15px;
+                    font-size: 16px;
+                }
+                .cap-attack-form-group {
+                    margin-bottom: 15px;
+                }
+                .cap-attack-form-group label {
+                    display: block;
+                    margin-bottom: 5px;
+                    font-weight: bold;
+                    color: #5D4037;
+                }
+                .cap-attack-form select,
+                .cap-attack-form input,
+                .cap-attack-form textarea {
+                    width: 100%;
+                    padding: 8px;
+                    border: 1px solid #7D510F;
+                    border-radius: 4px;
+                    font-size: 12px;
+                    box-sizing: border-box;
+                }
+                .cap-attack-form textarea {
+                    height: 60px;
+                    resize: vertical;
+                }
+                .cap-attack-dialog-buttons {
+                    display: flex;
+                    justify-content: flex-end;
+                    gap: 10px;
+                    margin-top: 20px;
+                }
+            </style>
+        `;
+
+        // Get available attacking villages
+        const attackingPlayer = window.CAP.State.getAttackingPlayer();
+        const attackingVillages = window.CAP.State.getAttackingVillages();
+        const playerVillages = window.CAP.State.getPlayerVillages(attackingPlayer);
+        
+        let attackingVillageOptions = '';
+        attackingVillages.forEach(villageId => {
+            const village = playerVillages[villageId];
+            if (village) {
+                attackingVillageOptions += `<option value="${villageId}">${village.name} (${village.coords})</option>`;
+            }
+        });
+
+        // Get available target villages
+        const targetVillages = window.CAP.State.getTargetVillages();
+        let targetVillageOptions = '';
+        targetVillages.forEach((village, coords) => {
+            targetVillageOptions += `<option value="${coords}">${village.name} (${coords}) - ${village.player}</option>`;
+        });
+
+        // Get current server time for default landing time
+        const now = new Date();
+        
+        // Safely get server time - fallback to local time if server_utc_diff is not available
+        let serverTime;
+        try {
+            const utcDiff = (typeof game_data !== 'undefined' && game_data.server_utc_diff) ? 
+                game_data.server_utc_diff : 0;
+            serverTime = new Date(now.getTime() + (utcDiff * 1000));
+            
+            // Validate the server time is valid
+            if (isNaN(serverTime.getTime())) {
+                serverTime = now; // Fallback to local time
+            }
+        } catch (e) {
+            serverTime = now; // Fallback to local time
+        }
+        
+        const defaultTime = new Date(serverTime.getTime() + 60 * 60 * 1000); // 1 hour from now
+        const defaultTimeStr = defaultTime.toISOString().slice(0, 19).replace('T', ' ');
+
+        const html = `
+            ${styles}
+            <div class="cap-attack-form">
+                <h3>Add New Attack</h3>
+                <div class="cap-attack-form-group">
+                    <label for="cap-attack-attacking-village">Attacking Village:</label>
+                    <select id="cap-attack-attacking-village">
+                        <option value="">-- Select Attacking Village --</option>
+                        ${attackingVillageOptions}
+                    </select>
+                </div>
+                <div class="cap-attack-form-group">
+                    <label for="cap-attack-target-village">Target Village:</label>
+                    <select id="cap-attack-target-village">
+                        <option value="">-- Select Target Village --</option>
+                        ${targetVillageOptions}
+                    </select>
+                </div>
+                <div class="cap-attack-form-group">
+                    <label for="cap-attack-landing-time">Landing Time (Server Time):</label>
+                    <input type="text" id="cap-attack-landing-time" value="${defaultTimeStr}" placeholder="YYYY-MM-DD HH:MM:SS">
+                    <small style="display: block; margin-top: 5px; color: #666;">Format: YYYY-MM-DD HH:MM:SS (e.g., 2025-09-05 15:30:00)</small>
+                </div>
+                <div class="cap-attack-form-group">
+                    <label for="cap-attack-notes">Notes (Optional):</label>
+                    <textarea id="cap-attack-notes" placeholder="Optional notes about this attack..."></textarea>
+                </div>
+                <div class="cap-attack-dialog-buttons">
+                    <button class="cap-button" id="cap-attack-cancel">Cancel</button>
+                    <button class="cap-button" id="cap-attack-save">Save Attack</button>
+                </div>
+            </div>
+        `;
+
+        Dialog.show('AddAttack', html);
+    };
+
+    // Update attack table display
+    const updateAttackTable = () => {
+        const tbody = document.getElementById('cap-attack-list');
+        if (!tbody) return;
+
+        const attacks = window.CAP.State.getAttacks();
+        
+        if (attacks.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #666;">No attacks configured</td></tr>';
+            return;
+        }
+
+        tbody.innerHTML = attacks.map(attack => `
+            <tr>
+                <td>${attack.attackingVillage.name} (${attack.attackingVillage.coords})</td>
+                <td>${attack.targetVillage.name} (${attack.targetVillage.coords}) - ${attack.targetVillage.player}</td>
+                <td>${attack.landingTime}</td>
+                <td>${attack.notes || '-'}</td>
+                <td>
+                    <button class="cap-button cap-button-small" onclick="window.CAP.editAttack('${attack.id}')">Edit</button>
+                    <button class="cap-button cap-button-small" onclick="window.CAP.removeAttack('${attack.id}')" style="margin-left: 5px;">Remove</button>
+                </td>
+            </tr>
+        `).join('');
     };
 
     return {
@@ -591,6 +742,8 @@ window.CAP.UI = (function() {
         showAddTribeDialog,
         toggleSectionStates,
         showVillageLoadingIndicator,
-        updateVillageLoadingMessage
+        updateVillageLoadingMessage,
+        showAddAttackDialog,
+        updateAttackTable
     };
 })();

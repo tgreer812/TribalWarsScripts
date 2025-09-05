@@ -74,6 +74,34 @@ window.CAP.State = (function() {
         currentPlan = null;
     };
 
+    // Attack management functions
+    const addAttack = (attack) => {
+        attack.id = attack.id || 'attack_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+        attacks.push(attack);
+    };
+
+    const removeAttack = (attackId) => {
+        const index = attacks.findIndex(attack => attack.id === attackId);
+        if (index !== -1) {
+            attacks.splice(index, 1);
+        }
+    };
+
+    const updateAttack = (attackId, updates) => {
+        const index = attacks.findIndex(attack => attack.id === attackId);
+        if (index !== -1) {
+            attacks[index] = { ...attacks[index], ...updates };
+        }
+    };
+
+    const clearAttacks = () => {
+        attacks.length = 0;
+    };
+
+    const getAttackById = (attackId) => {
+        return attacks.find(attack => attack.id === attackId);
+    };
+
     // Recent targets management
     const getRecentTargets = () => {
         const stored = localStorage.getItem('cap-recent-targets');
@@ -124,6 +152,13 @@ window.CAP.State = (function() {
         removeAttackingVillage,
         clearAll,
         getRecentTargets,
-        addToRecentTargets
+        addToRecentTargets,
+        
+        // Attack management
+        addAttack,
+        removeAttack,
+        updateAttack,
+        clearAttacks,
+        getAttackById
     };
 })();

@@ -23,6 +23,8 @@
         window.CAP.UI.showPlanDesignPage();
         bindPlanDesignEvents();
         loadPlayerData();
+        // Initialize attack table
+        window.CAP.UI.updateAttackTable();
     }
 
     // Bind events for plan design page (prevent double binding)
@@ -48,10 +50,10 @@
         setupTargetVillageEvents();
         setupAttackingVillageEvents();
 
-        // Placeholder handlers
-        document.getElementById('cap-add-attack').onclick   = () => alert('Add attack - not implemented');
+        // Attack management handlers
+        document.getElementById('cap-add-attack').onclick   = showAddAttackDialog;
         document.getElementById('cap-mass-add').onclick     = () => alert('Mass add - not implemented');
-        document.getElementById('cap-clear-attacks').onclick= () => alert('Clear attacks - not implemented');
+        document.getElementById('cap-clear-attacks').onclick= clearAllAttacks;
         document.getElementById('cap-preview').onclick      = () => alert('Preview plan - not implemented');
         document.getElementById('cap-export').onclick       = () => alert('Export plan - not implemented');
     }
@@ -283,6 +285,20 @@
         window.CAP.UI.updateTargetVillagesDisplay();
     };
 
+    // Attack management callbacks
+    window.CAP.removeAttack = attackId => {
+        if (confirm('Are you sure you want to remove this attack?')) {
+            window.CAP.State.removeAttack(attackId);
+            window.CAP.UI.updateAttackTable();
+            UI.SuccessMessage('Attack removed successfully');
+        }
+    };
+
+    window.CAP.editAttack = attackId => {
+        // For now, just show an alert - edit functionality can be implemented later
+        UI.InfoMessage('Edit attack functionality will be implemented in a future update');
+    };
+
     // Add tribe members
     window.CAP.addTribeMembers = function() {
         const tribeTag = document.getElementById('tribe-input').value.trim();
@@ -320,6 +336,154 @@
     // Load player data
     function loadPlayerData() {
         console.log('Loading player data...');
+    }
+
+    // Attack management functions
+    function showAddAttackDialog() {
+        // Validate prerequisites
+        const attackingPlayer = window.CAP.State.getAttackingPlayer();
+        if (!attackingPlayer) {
+            return UI.ErrorMessage('Please select an attacking player first');
+        }
+
+        const attackingVillages = window.CAP.State.getAttackingVillages();
+        if (attackingVillages.size === 0) {
+            return UI.ErrorMessage('Please select at least one attacking village first');
+        }
+
+        const targetVillages = window.CAP.State.getTargetVillages();
+        if (targetVillages.size === 0) {
+            return UI.ErrorMessage('Please select at least one target village first');
+        }
+
+        // Show the dialog
+        window.CAP.UI.showAddAttackDialog();
+
+        // Bind dialog events
+        document.getElementById('cap-attack-cancel').onclick = function() {
+            Dialog.close();
+        };
+
+        document.getElementById('cap-attack-save').onclick = function() {
+            saveNewAttack();
+        };
+    }
+
+    function saveNewAttack() {
+        const attackingVillageId = document.getElementById('cap-attack-attacking-village').value;
+        const targetVillageCoords = document.getElementById('cap-attack-target-village').value;
+        const landingTime = document.getElementById('cap-attack-landing-time').value.trim();
+        const notes = document.getElementById('cap-attack-notes').value.trim();
+
+        // Validate inputs
+        if (!attackingVillageId) {
+            return UI.ErrorMessage('Please select an attacking village');
+        }
+
+        if (!targetVillageCoords) {
+            return UI.ErrorMessage('Please select a target village');
+        }
+
+        if (!landingTime) {
+            return UI.ErrorMessage('Please enter a landing time');
+        }
+
+        // Validate landing time format
+        const timeRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
+        if (!timeRegex.test(landingTime)) {
+            return UI.ErrorMessage('Invalid landing time format. Please use YYYY-MM-DD HH:MM:SS');
+        }
+
+        // Validate landing time is in the future
+        const landingDate = new Date(landingTime.replace(' ', 'T'));
+        const now = new Date();
+        
+        // Safely get server time - fallback to local time if server_utc_diff is not available
+        let serverTime;
+        try {
+            const utcDiff = (typeof game_data !== 'undefined' && game_data.server_utc_diff) ? 
+                game_data.server_utc_diff : 0;
+            serverTime = new Date(now.getTime() + (utcDiff * 1000));
+            
+            // Validate the server time is valid
+            if (isNaN(serverTime.getTime())) {
+                serverTime = now; // Fallback to local time
+            }
+        } catch (e) {
+            serverTime = now; // Fallback to local time
+        }
+        
+        if (landingDate <= serverTime) {
+            return UI.ErrorMessage('Landing time must be in the future');
+        }
+
+        // Get village details
+        const attackingPlayer = window.CAP.State.getAttackingPlayer();
+        const playerVillages = window.CAP.State.getPlayerVillages(attackingPlayer);
+        const attackingVillage = playerVillages[attackingVillageId];
+        
+        const targetVillages = window.CAP.State.getTargetVillages();
+        const targetVillage = targetVillages.get(targetVillageCoords);
+
+        if (!attackingVillage) {
+            return UI.ErrorMessage('Selected attacking village not found');
+        }
+
+        if (!targetVillage) {
+            return UI.ErrorMessage('Selected target village not found');
+        }
+
+        // Check for duplicate attacks (same attacking village + target village + time)
+        const existingAttacks = window.CAP.State.getAttacks();
+        const duplicate = existingAttacks.find(attack => 
+            attack.attackingVillage.id === attackingVillageId &&
+            attack.targetVillage.coords === targetVillageCoords &&
+            attack.landingTime === landingTime
+        );
+
+        if (duplicate) {
+            return UI.ErrorMessage('An identical attack (same attacking village, target, and time) already exists');
+        }
+
+        // Create attack object
+        const attack = {
+            attackingVillage: {
+                id: attackingVillageId,
+                name: attackingVillage.name,
+                coords: attackingVillage.coords
+            },
+            targetVillage: {
+                coords: targetVillage.coords,
+                name: targetVillage.name,
+                player: targetVillage.player
+            },
+            landingTime: landingTime,
+            notes: notes,
+            template: '' // Empty initially, filled during plan execution
+        };
+
+        // Add attack to state
+        window.CAP.State.addAttack(attack);
+        
+        // Update UI
+        window.CAP.UI.updateAttackTable();
+        
+        // Close dialog and show success
+        Dialog.close();
+        UI.SuccessMessage('Attack added successfully');
+    }
+
+    function clearAllAttacks() {
+        const attacks = window.CAP.State.getAttacks();
+        if (attacks.length === 0) {
+            return UI.InfoMessage('No attacks to clear');
+        }
+
+        if (confirm(`Are you sure you want to clear all ${attacks.length} attacks?`)) {
+            window.CAP.State.clearAttacks();
+            window.CAP.UI.updateAttackTable();
+            UI.SuccessMessage('All attacks cleared');
+        }
     }
 
     // Run on script load
