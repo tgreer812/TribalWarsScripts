@@ -1,9 +1,9 @@
 ﻿// Coordinated Attack Planner - Merged Build
-// Generated on: 2025-08-06 21:52:32
+// Generated on: 2025-09-05 18:12:02
 // This file is auto-generated. Do not edit directly.
 
 // ==================================================
-// MODULE: CoordinatedAttackPlanner\modules\cap-state.js
+// MODULE: modules\cap-state.js
 // ==================================================
 
 // CAP State Management Module
@@ -137,7 +137,7 @@ window.CAP.State = (function() {
 })();
 
 // ==================================================
-// MODULE: CoordinatedAttackPlanner\modules\cap-validation.js
+// MODULE: modules\cap-validation.js
 // ==================================================
 
 // CAP Validation Module
@@ -455,7 +455,7 @@ window.CAP.Validation = (function() {
 })();
 
 // ==================================================
-// MODULE: CoordinatedAttackPlanner\modules\cap-ui.js
+// MODULE: modules\cap-ui.js
 // ==================================================
 
 // CAP UI Module
