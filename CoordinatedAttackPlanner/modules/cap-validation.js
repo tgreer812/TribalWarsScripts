@@ -372,35 +372,14 @@ window.CAP.Validation = (function() {
                     errors.push(prefix + 'Invalid id format (expected: attack_\\d+_[a-z0-9]+)');
                 }
 
-                // Validate attacking village
-                if (attack.attackingVillage) {
-                    if (!attack.attackingVillage.coords) {
-                        errors.push(prefix + 'Missing attackingVillage.coords');
-                    } else if (!/^\d{1,3}\|\d{1,3}$/.test(attack.attackingVillage.coords)) {
-                        errors.push(prefix + 'Invalid attackingVillage.coords format (expected: xxx|yyy)');
-                    }
-                    if (!attack.attackingVillage.name) {
-                        errors.push(prefix + 'Missing attackingVillage.name');
-                    }
-                    if (attack.attackingVillage.id !== undefined && 
-                        (!Number.isInteger(attack.attackingVillage.id) || attack.attackingVillage.id < 1)) {
-                        errors.push(prefix + 'attackingVillage.id must be a positive integer');
-                    }
+                // Validate attacking village coordinates
+                if (attack.attackingVillage && !/^\d{1,3}\|\d{1,3}$/.test(attack.attackingVillage)) {
+                    errors.push(prefix + 'Invalid attackingVillage format (expected: xxx|yyy)');
                 }
 
-                // Validate target village
-                if (attack.targetVillage) {
-                    if (!attack.targetVillage.coords) {
-                        errors.push(prefix + 'Missing targetVillage.coords');
-                    } else if (!/^\d{1,3}\|\d{1,3}$/.test(attack.targetVillage.coords)) {
-                        errors.push(prefix + 'Invalid targetVillage.coords format (expected: xxx|yyy)');
-                    }
-                    if (!attack.targetVillage.name) {
-                        errors.push(prefix + 'Missing targetVillage.name');
-                    }
-                    if (!attack.targetVillage.player) {
-                        errors.push(prefix + 'Missing targetVillage.player');
-                    }
+                // Validate target village coordinates
+                if (attack.targetVillage && !/^\d{1,3}\|\d{1,3}$/.test(attack.targetVillage)) {
+                    errors.push(prefix + 'Invalid targetVillage format (expected: xxx|yyy)');
                 }
 
                 // Validate timestamp
@@ -425,9 +404,6 @@ window.CAP.Validation = (function() {
                 // Validate optional fields
                 if (attack.notes !== undefined && typeof attack.notes !== 'string') {
                     errors.push(prefix + 'notes must be a string');
-                }
-                if (attack.distance !== undefined && (typeof attack.distance !== 'number' || attack.distance < 0)) {
-                    errors.push(prefix + 'distance must be a non-negative number');
                 }
 
                 return errors;

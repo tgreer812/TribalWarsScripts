@@ -53,12 +53,14 @@
           "pattern": "^attack_\\d+_[a-z0-9]+$"
         },
         "attackingVillage": {
-          "$ref": "#/$defs/village",
-          "description": "The village launching the attack"
+          "type": "string",
+          "description": "Coordinates of the attacking village in format 'xxx|yyy'",
+          "pattern": "^\\d{1,3}\\|\\d{1,3}$"
         },
         "targetVillage": {
-          "$ref": "#/$defs/village",
-          "description": "The village being attacked"
+          "type": "string",
+          "description": "Coordinates of the target village in format 'xxx|yyy'",
+          "pattern": "^\\d{1,3}\\|\\d{1,3}$"
         },
         "sendTime": {
           "type": "string",

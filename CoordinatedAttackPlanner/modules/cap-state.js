@@ -139,41 +139,19 @@ window.CAP.State = (function() {
             const now = new Date();
             const nowISO = now.toISOString();
 
-            // Calculate distance for each attack
-            const calculateDistance = (coords1, coords2) => {
-                const [x1, y1] = coords1.split('|').map(Number);
-                const [x2, y2] = coords2.split('|').map(Number);
-                return Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
-            };
-
             // Convert attacks to schema format
             const exportAttacks = attacks.map(attack => {
                 // Convert landingTime to ISO format for arrivalTime
                 const arrivalTime = new Date(attack.landingTime.replace(' ', 'T') + '.000Z').toISOString();
                 
-                // Calculate distance
-                const distance = calculateDistance(
-                    attack.attackingVillage.coords,
-                    attack.targetVillage.coords
-                );
-
                 return {
                     id: attack.id,
-                    attackingVillage: {
-                        id: parseInt(attack.attackingVillage.id),
-                        name: attack.attackingVillage.name,
-                        coords: attack.attackingVillage.coords
-                    },
-                    targetVillage: {
-                        coords: attack.targetVillage.coords,
-                        name: attack.targetVillage.name,
-                        player: attack.targetVillage.player
-                    },
+                    attackingVillage: attack.attackingVillage.coords,
+                    targetVillage: attack.targetVillage.coords,
                     sendTime: "", // Empty - calculated at import time
                     template: "", // Empty - assigned during finalization
                     slowestUnit: "", // Empty - assigned during finalization
                     arrivalTime: arrivalTime,
-                    distance: Math.round(distance * 1000) / 1000, // Round to 3 decimal places
                     notes: attack.notes || ""
                 };
             });

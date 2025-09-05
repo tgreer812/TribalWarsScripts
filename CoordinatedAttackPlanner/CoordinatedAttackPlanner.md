@@ -48,21 +48,12 @@ The plan export format uses a well-defined JSON structure that is base64-encoded
   "attacks": [
     {
       "id": "attack_1725534600_abc123def",
-      "attackingVillage": {
-        "id": 12345,
-        "name": "Village Name",
-        "coords": "500|500"
-      },
-      "targetVillage": {
-        "coords": "501|501",
-        "name": "Target Village",
-        "player": "Enemy Player"
-      },
+      "attackingVillage": "500|500",
+      "targetVillage": "501|501",
       "sendTime": "",
       "template": "",
       "slowestUnit": "",
       "arrivalTime": "2025-09-05T12:30:00.000Z",
-      "distance": 1.414,
       "notes": "Main attack"
     }
   ]
@@ -82,6 +73,8 @@ The plan export format uses a well-defined JSON structure that is base64-encoded
 - **template** and **slowestUnit**: Empty strings during planning phase, filled during finalization
 - **sendTime**: When the attack should be sent (empty during planning, calculated at import time)
 - **arrivalTime**: When the attack should land (user-specified landing time)
+- **attackingVillage**: Coordinates of the attacking village (e.g., "500|500")
+- **targetVillage**: Coordinates of the target village (e.g., "501|501")
 - **id**: Unique identifier with pattern `attack_\d+_[a-z0-9]+`
 
 ---
