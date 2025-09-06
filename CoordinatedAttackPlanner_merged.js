@@ -1,5 +1,5 @@
 ﻿// Coordinated Attack Planner - Merged Build
-// Generated on: 2025-09-05 22:41:28
+// Generated on: 2025-09-05 23:01:57
 // This file is auto-generated. Do not edit directly.
 
 // ==================================================
@@ -2474,27 +2474,71 @@ window.CAP.UI = (function() {
         const toCoords = button.getAttribute('data-to');
         const template = button.getAttribute('data-template');
         
-        // Construct the attack URL
-        const [x, y] = toCoords.split('|');
-        let attackUrl = `/game.php?screen=place&x=${x}&y=${y}`;
-        
-        if (template && template !== '') {
-            attackUrl += `&template_id=${template}`;
-        }
-        
-        // Open in new window/tab
-        window.open(attackUrl, '_blank');
-        
-        // Mark attack as launched (visual feedback)
-        button.textContent = 'Launched';
-        button.style.backgroundColor = '#666';
+        // Provide immediate visual feedback
+        const originalText = button.textContent;
+        button.textContent = 'Looking up...';
         button.disabled = true;
         
-        // Add launched class to row
-        const row = button.closest('.cap-attack-row');
-        if (row) {
-            row.style.backgroundColor = '#f0f0f0';
-        }
+        // Look up the village ID for the attacking village
+        lookupVillageId(fromCoords)
+            .then(villageId => {
+                if (villageId) {
+                    // Construct the attack URL with the specific village rally point
+                    const [x, y] = toCoords.split('|');
+                    let attackUrl = `/game.php?village=${villageId}&screen=place&x=${x}&y=${y}`;
+                    
+                    if (template && template !== '') {
+                        attackUrl += `&template_id=${template}`;
+                    }
+                    
+                    // Open in new window/tab
+                    window.open(attackUrl, '_blank');
+                } else {
+                    // Fallback to the old method if village lookup fails
+                    const [x, y] = toCoords.split('|');
+                    let attackUrl = `/game.php?screen=place&x=${x}&y=${y}`;
+                    
+                    if (template && template !== '') {
+                        attackUrl += `&template_id=${template}`;
+                    }
+                    
+                    window.open(attackUrl, '_blank');
+                    console.warn(`Could not find village ID for coordinates ${fromCoords}, using fallback method`);
+                }
+                
+                // Mark attack as launched (visual feedback)
+                button.textContent = 'Launched';
+                button.style.backgroundColor = '#666';
+                
+                // Add launched class to row
+                const row = button.closest('.cap-attack-row');
+                if (row) {
+                    row.style.backgroundColor = '#f0f0f0';
+                }
+            })
+            .catch(error => {
+                console.error('Error looking up village ID for launch:', error);
+                
+                // Fallback to the old method
+                const [x, y] = toCoords.split('|');
+                let attackUrl = `/game.php?screen=place&x=${x}&y=${y}`;
+                
+                if (template && template !== '') {
+                    attackUrl += `&template_id=${template}`;
+                }
+                
+                window.open(attackUrl, '_blank');
+                
+                // Mark attack as launched with error indication
+                button.textContent = 'Launched (Error)';
+                button.style.backgroundColor = '#666';
+                
+                // Add launched class to row
+                const row = button.closest('.cap-attack-row');
+                if (row) {
+                    row.style.backgroundColor = '#f0f0f0';
+                }
+            });
     };
 
     // Handle configuring an attack (manual/slowest unit)
@@ -2503,24 +2547,106 @@ window.CAP.UI = (function() {
         const fromCoords = button.getAttribute('data-from');
         const toCoords = button.getAttribute('data-to');
         
-        // Construct the attack URL (no template)
-        const [x, y] = toCoords.split('|');
-        const attackUrl = `/game.php?screen=place&x=${x}&y=${y}`;
-        
-        // Open in new window/tab
-        window.open(attackUrl, '_blank');
-        
-        // Note: Don't disable the Configure button - user may need to use it multiple times
-        // Just provide visual feedback that it was clicked
+        // Provide immediate visual feedback
         const originalText = button.textContent;
-        button.textContent = 'Opened';
+        const originalColor = button.style.backgroundColor;
+        button.textContent = 'Looking up...';
         button.style.backgroundColor = '#B8860B'; // Darker tan
+        button.disabled = true;
         
-        // Reset the button after 2 seconds
-        setTimeout(() => {
-            button.textContent = originalText;
-            button.style.backgroundColor = '#D2B48C'; // Original tan
-        }, 2000);
+        // Look up the village ID for the attacking village
+        lookupVillageId(fromCoords)
+            .then(villageId => {
+                if (villageId) {
+                    // Construct the attack URL with the specific village rally point
+                    const [x, y] = toCoords.split('|');
+                    const attackUrl = `/game.php?village=${villageId}&screen=place&x=${x}&y=${y}`;
+                    
+                    // Open in new window/tab
+                    window.open(attackUrl, '_blank');
+                    
+                    // Update button to show success
+                    button.textContent = 'Opened';
+                } else {
+                    // Fallback to the old method if village lookup fails
+                    const [x, y] = toCoords.split('|');
+                    const attackUrl = `/game.php?screen=place&x=${x}&y=${y}`;
+                    window.open(attackUrl, '_blank');
+                    
+                    button.textContent = 'Opened (Fallback)';
+                    console.warn(`Could not find village ID for coordinates ${fromCoords}, using fallback method`);
+                }
+            })
+            .catch(error => {
+                console.error('Error looking up village ID:', error);
+                
+                // Fallback to the old method
+                const [x, y] = toCoords.split('|');
+                const attackUrl = `/game.php?screen=place&x=${x}&y=${y}`;
+                window.open(attackUrl, '_blank');
+                
+                button.textContent = 'Opened (Error)';
+            })
+            .finally(() => {
+                // Reset the button after 2 seconds
+                setTimeout(() => {
+                    button.textContent = originalText;
+                    button.style.backgroundColor = originalColor || '#D2B48C';
+                    button.disabled = false;
+                }, 2000);
+            });
+    };
+
+    // Helper function to look up village ID from coordinates
+    const lookupVillageId = (coords) => {
+        return new Promise((resolve, reject) => {
+            // Use the current village ID for the API request (this is just for authentication/context)
+            const currentVillageId = game_data.village.id;
+            
+            // Encode the coordinates for the URL (e.g., "500|500" becomes "500%7C500")
+            const encodedCoords = encodeURIComponent(coords);
+            
+            // Construct the API URL based on the pattern you provided
+            const apiUrl = `/game.php?village=${currentVillageId}&screen=api&ajax=target_selection&input=${encodedCoords}&type=coord&request_id=${Date.now()}&limit=8&offset=0`;
+            
+            // Make the request
+            $.get(apiUrl)
+                .done(function(response) {
+                    try {
+                        // The response should be JSON with village information
+                        let data;
+                        if (typeof response === 'string') {
+                            data = JSON.parse(response);
+                        } else {
+                            data = response;
+                        }
+                        
+                        // Look for a village at the exact coordinates
+                        if (data && data.villages && Array.isArray(data.villages)) {
+                            const village = data.villages.find(v => 
+                                v.x && v.y && `${v.x}|${v.y}` === coords
+                            );
+                            
+                            if (village && village.id) {
+                                resolve(village.id);
+                            } else {
+                                console.warn(`No village found at coordinates ${coords} in API response`);
+                                resolve(null);
+                            }
+                        } else {
+                            console.warn('Unexpected API response format:', data);
+                            resolve(null);
+                        }
+                    } catch (error) {
+                        console.error('Error parsing village lookup response:', error);
+                        reject(error);
+                    }
+                })
+                .fail(function(xhr, status, error) {
+                    console.error('Village lookup API request failed:', error);
+                    reject(new Error(`API request failed: ${status} - ${error}`));
+                });
+        });
     };
 
     // Start countdown timers
