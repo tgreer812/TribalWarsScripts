@@ -1,5 +1,5 @@
 ﻿// Coordinated Attack Planner - Merged Build
-// Generated on: 2025-09-05 20:34:21
+// Generated on: 2025-09-05 22:35:24
 // This file is auto-generated. Do not edit directly.
 
 // ==================================================
@@ -149,17 +149,14 @@ window.CAP.State = (function() {
 
             // Convert attacks to schema format
             const exportAttacks = attacks.map(attack => {
-                // Convert landingTime to ISO format for arrivalTime
-                const arrivalTime = new Date(attack.landingTime.replace(' ', 'T') + '.000Z').toISOString();
-                
                 return {
                     id: attack.id,
                     attackingVillage: attack.attackingVillage.coords,
                     targetVillage: attack.targetVillage.coords,
-                    sendTime: "", // Empty - calculated at import time
-                    template: "", // Empty - assigned during finalization
-                    slowestUnit: "", // Empty - assigned during finalization
-                    arrivalTime: arrivalTime,
+                    sendTime: attack.sendTime || "", // Empty - calculated at import time
+                    template: attack.template || "", // Empty - assigned during finalization
+                    slowestUnit: attack.slowestUnit || "", // Empty - assigned during finalization
+                    arrivalTime: attack.arrivalTime,
                     notes: attack.notes || ""
                 };
             });
@@ -1864,13 +1861,11 @@ window.CAP.UI = (function() {
         if (attacks.length === 0) {
             tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #666;">No attacks configured</td></tr>';
             return;
-        }
-
-        tbody.innerHTML = attacks.map(attack => `
+        }            tbody.innerHTML = attacks.map(attack => `
             <tr>
                 <td>${attack.attackingVillage.name} (${attack.attackingVillage.coords})</td>
                 <td>${attack.targetVillage.name} (${attack.targetVillage.coords}) - ${attack.targetVillage.player}</td>
-                <td>${attack.landingTime}</td>
+                <td>${formatDateTime(attack.arrivalTime)}</td>
                 <td>${attack.notes || '-'}</td>
                 <td>
                     <button class="cap-button cap-button-small" onclick="window.CAP.editAttack('${attack.id}')">Edit</button>
@@ -3056,9 +3051,11 @@ window.CAP.UI = (function() {
                 name: targetVillage.name,
                 player: targetVillage.player
             },
-            landingTime: landingTime,
+            arrivalTime: new Date(landingTime.replace(' ', 'T') + '.000Z').toISOString(),
             notes: notes,
-            template: '' // Empty initially, filled during plan execution
+            template: '', // Empty initially, filled during plan execution
+            slowestUnit: '', // Empty initially, filled during plan execution
+            sendTime: '' // Empty initially, filled during plan finalization
         };
 
         return { isValid: true, attack: attack };
@@ -3066,10 +3063,11 @@ window.CAP.UI = (function() {
 
     function checkDuplicateAttack(attackingVillageId, targetVillageCoords, landingTime) {
         const existingAttacks = window.CAP.State.getAttacks();
+        const arrivalTimeISO = new Date(landingTime.replace(' ', 'T') + '.000Z').toISOString();
         return existingAttacks.find(attack => 
             attack.attackingVillage.id === attackingVillageId &&
             attack.targetVillage.coords === targetVillageCoords &&
-            attack.landingTime === landingTime
+            attack.arrivalTime === arrivalTimeISO
         );
     }
 

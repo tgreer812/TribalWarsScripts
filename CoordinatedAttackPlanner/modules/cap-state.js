@@ -141,17 +141,14 @@ window.CAP.State = (function() {
 
             // Convert attacks to schema format
             const exportAttacks = attacks.map(attack => {
-                // Convert landingTime to ISO format for arrivalTime
-                const arrivalTime = new Date(attack.landingTime.replace(' ', 'T') + '.000Z').toISOString();
-                
                 return {
                     id: attack.id,
                     attackingVillage: attack.attackingVillage.coords,
                     targetVillage: attack.targetVillage.coords,
-                    sendTime: "", // Empty - calculated at import time
-                    template: "", // Empty - assigned during finalization
-                    slowestUnit: "", // Empty - assigned during finalization
-                    arrivalTime: arrivalTime,
+                    sendTime: attack.sendTime || "", // Empty - calculated at import time
+                    template: attack.template || "", // Empty - assigned during finalization
+                    slowestUnit: attack.slowestUnit || "", // Empty - assigned during finalization
+                    arrivalTime: attack.arrivalTime,
                     notes: attack.notes || ""
                 };
             });

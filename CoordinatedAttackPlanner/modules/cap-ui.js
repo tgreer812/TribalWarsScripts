@@ -868,13 +868,11 @@ window.CAP.UI = (function() {
         if (attacks.length === 0) {
             tbody.innerHTML = '<tr><td colspan="5" style="text-align: center; color: #666;">No attacks configured</td></tr>';
             return;
-        }
-
-        tbody.innerHTML = attacks.map(attack => `
+        }            tbody.innerHTML = attacks.map(attack => `
             <tr>
                 <td>${attack.attackingVillage.name} (${attack.attackingVillage.coords})</td>
                 <td>${attack.targetVillage.name} (${attack.targetVillage.coords}) - ${attack.targetVillage.player}</td>
-                <td>${attack.landingTime}</td>
+                <td>${formatDateTime(attack.arrivalTime)}</td>
                 <td>${attack.notes || '-'}</td>
                 <td>
                     <button class="cap-button cap-button-small" onclick="window.CAP.editAttack('${attack.id}')">Edit</button>
