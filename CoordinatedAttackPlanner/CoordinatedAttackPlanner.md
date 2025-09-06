@@ -262,12 +262,12 @@ Operations (ops) may span hours or days, making it impractical to require users 
 - [x] Duplicate attack prevention
 - [x] Attack management (add, remove, clear all)
 - [x] Progress feedback for batch operations
-- [ ] **Next:** Export functionality
+- [x] **Next:** Export functionality
 
 ### Phase 3: Plan Execution (PLANNED)
-- [ ] Import functionality
-- [ ] Template assignment screen
-- [ ] Execution screen with countdowns
+- [x] Import functionality
+- [x] Template assignment screen
+- [x] Execution screen with countdowns
 - [ ] Launch buttons and attack sending
 
 ### Phase 4: Polish & Features (PLANNED)
