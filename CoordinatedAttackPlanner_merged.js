@@ -1,5 +1,5 @@
 ﻿// Coordinated Attack Planner - Merged Build
-// Generated on: 2025-09-05 19:59:02
+// Generated on: 2025-09-05 20:16:56
 // This file is auto-generated. Do not edit directly.
 
 // ==================================================
@@ -207,6 +207,263 @@ window.CAP.State = (function() {
         }
     };
 
+    // Export existing plan data (for finalized plans)
+    const exportExistingPlan = (planData) => {
+        try {
+            // Update export timestamp
+            const updatedPlanData = {
+                ...planData,
+                exportedAt: new Date().toISOString()
+            };
+
+            // Validate using version-specific validator
+            const validator = window.CAP.Validation.PlanValidators[updatedPlanData.version];
+            if (!validator) {
+                return { isValid: false, error: 'Plan validator not found' };
+            }
+
+            const validation = validator.validate(updatedPlanData);
+            if (!validation.isValid) {
+                return { 
+                    isValid: false, 
+                    error: 'Plan validation failed: ' + validation.errors.join('; ') 
+                };
+            }
+
+            // Convert to JSON and base64 encode
+            const jsonString = JSON.stringify(updatedPlanData, null, 0);
+            const base64String = btoa(jsonString);
+
+            return {
+                isValid: true,
+                planData: updatedPlanData,
+                base64: base64String,
+                json: jsonString
+            };
+        } catch (error) {
+            return { isValid: false, error: 'Export failed: ' + error.message };
+        }
+    };
+
+    // Plan import function
+    const importPlan = (base64String) => {
+        try {
+            // Decode and parse
+            const jsonString = atob(base64String);
+            const planData = JSON.parse(jsonString);
+            
+            // Validate using version-specific validator
+            const validator = window.CAP.Validation.PlanValidators[planData.version];
+            if (!validator) {
+                return { isValid: false, error: `Unsupported plan version: ${planData.version}` };
+            }
+            
+            const validation = validator.validate(planData);
+            if (!validation.isValid) {
+                return { isValid: false, error: 'Invalid plan: ' + validation.errors.join('; ') };
+            }
+            
+            return { isValid: true, planData: planData };
+        } catch (error) {
+            return { isValid: false, error: 'Invalid plan, unable to import.' };
+        }
+    };
+
+    // Attack readiness functions (modular and reusable)
+    const hasTemplateAssigned = (attack) => {
+        return attack.template && attack.template !== "" && isValidTemplate(attack.template);
+    };
+
+    const hasSlowestUnitAssigned = (attack) => {
+        return attack.slowestUnit && attack.slowestUnit !== "" && isValidUnit(attack.slowestUnit);
+    };
+
+    const isAttackReady = (attack) => {
+        return hasTemplateAssigned(attack) || hasSlowestUnitAssigned(attack);
+    };
+
+    const isPlanReadyForExecution = (planData) => {
+        return planData.attacks.every(attack => isAttackReady(attack));
+    };
+
+    const needsTemplateAssignment = (planData) => {
+        return !isPlanReadyForExecution(planData);
+    };
+
+    const getAttacksNeedingTemplates = (planData) => {
+        return planData.attacks.filter(attack => !isAttackReady(attack));
+    };
+
+    // Validation helper functions
+    const isValidTemplate = (templateName) => {
+        if (!templateName || templateName === "") return false;
+        
+        // Get user's templates and check if this one exists
+        const userTemplates = getUserTemplates();
+        return userTemplates.some(template => template.name === templateName);
+    };
+
+    const isValidUnit = (unitType) => {
+        const validUnits = ["spear", "sword", "axe", "archer", "spy", "light", "marcher", "heavy", "ram", "catapult", "knight", "snob"];
+        return validUnits.includes(unitType);
+    };
+
+    // Get user's available templates from Tribal Wars
+    const getUserTemplates = () => {
+        try {
+            // Try to get templates from the game's template system
+            // This is a placeholder - actual implementation would access TW's template data
+            if (window.game_data && window.game_data.templates) {
+                return window.game_data.templates;
+            }
+            
+            // Fallback: try to parse from the current page if we're on the templates page
+            if (window.location.href.includes('screen=place&mode=templates')) {
+                return parseTemplatesFromPage();
+            }
+            
+            // Mock data for development/testing
+            return [
+                { name: "Full Nuke", units: { axe: 8000, light: 3000, marcher: 1000, ram: 300, catapult: 100 } },
+                { name: "Fake", units: { spear: 1, spy: 5 } },
+                { name: "Noble Train", units: { axe: 6000, light: 2000, snob: 1 } },
+                { name: "Clear", units: { axe: 5000, light: 2000, ram: 50 } }
+            ];
+        } catch (error) {
+            console.warn('Could not load user templates:', error);
+            return [];
+        }
+    };
+
+    // Parse templates from the templates page (fallback method)
+    const parseTemplatesFromPage = () => {
+        try {
+            // This would parse the templates from the current page HTML
+            // Implementation depends on TW's template page structure
+            const templates = [];
+            // ... parsing logic would go here
+            return templates;
+        } catch (error) {
+            console.warn('Could not parse templates from page:', error);
+            return [];
+        }
+    };
+
+    // Calculate slowest unit from a template
+    const calculateSlowestUnit = (template) => {
+        const unitSpeeds = {
+            spear: 18, sword: 22, axe: 18, archer: 18, spy: 9,
+            light: 10, marcher: 10, heavy: 11, ram: 30, catapult: 30,
+            knight: 10, snob: 35
+        };
+        
+        let slowestUnit = '';
+        let slowestSpeed = 0;
+        
+        Object.keys(template.units || {}).forEach(unit => {
+            if (template.units[unit] > 0 && unitSpeeds[unit] > slowestSpeed) {
+                slowestSpeed = unitSpeeds[unit];
+                slowestUnit = unit;
+            }
+        });
+        
+        return slowestUnit;
+    };
+
+    // Calculate send time based on arrival time, distance, and unit speed
+    const calculateSendTime = (arrivalTime, attackingCoords, targetCoords, slowestUnit) => {
+        try {
+            const unitSpeeds = {
+                spear: 18, sword: 22, axe: 18, archer: 18, spy: 9,
+                light: 10, marcher: 10, heavy: 11, ram: 30, catapult: 30,
+                knight: 10, snob: 35
+            };
+            
+            // Calculate distance between villages
+            const [x1, y1] = attackingCoords.split('|').map(Number);
+            const [x2, y2] = targetCoords.split('|').map(Number);
+            const distance = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+            
+            // Get unit speed and world settings
+            const unitSpeed = unitSpeeds[slowestUnit] || 18;
+            const worldSpeed = window.game_data ? (window.game_data.speed || 1) : 1;
+            const unitSpeed_config = window.game_data ? (window.game_data.config?.speed || 1) : 1;
+            
+            // Calculate travel time in minutes
+            const travelTimeMinutes = distance * unitSpeed / (worldSpeed * unitSpeed_config);
+            
+            // Calculate send time
+            const arrivalDate = new Date(arrivalTime);
+            const sendDate = new Date(arrivalDate.getTime() - (travelTimeMinutes * 60 * 1000));
+            
+            return sendDate.toISOString();
+        } catch (error) {
+            console.warn('Error calculating send time:', error);
+            return new Date().toISOString(); // Fallback to current time
+        }
+    };
+
+    // Finalize plan with template assignments
+    const finalizePlan = (planData, templateAssignments) => {
+        try {
+            const userTemplates = getUserTemplates();
+            
+            const finalizedAttacks = planData.attacks.map((attack, index) => {
+                // Check if attack already has valid template or slowest unit
+                if (isAttackReady(attack)) {
+                    // Attack is already ready, just ensure sendTime is calculated
+                    let sendTime = attack.sendTime;
+                    if (!sendTime || sendTime === "") {
+                        const unit = attack.slowestUnit || calculateSlowestUnit(userTemplates.find(t => t.name === attack.template));
+                        sendTime = calculateSendTime(attack.arrivalTime, attack.attackingVillage, attack.targetVillage, unit);
+                    }
+                    
+                    return { ...attack, sendTime };
+                }
+                
+                // Attack needs finalization from template assignments
+                const templateAssignment = templateAssignments[index];
+                if (!templateAssignment) {
+                    throw new Error(`No template assignment for attack ${index + 1}`);
+                }
+                
+                const template = userTemplates.find(t => t.name === templateAssignment);
+                if (!template) {
+                    throw new Error(`Template '${templateAssignment}' not found`);
+                }
+                
+                const slowestUnit = calculateSlowestUnit(template);
+                const sendTime = calculateSendTime(attack.arrivalTime, attack.attackingVillage, attack.targetVillage, slowestUnit);
+                
+                return {
+                    ...attack,
+                    template: template.name,
+                    slowestUnit: slowestUnit,
+                    sendTime: sendTime
+                };
+            });
+            
+            const finalizedPlan = {
+                ...planData,
+                attacks: finalizedAttacks,
+                exportedAt: new Date().toISOString()
+            };
+            
+            // Validate the finalized plan
+            const validator = window.CAP.Validation.PlanValidators[finalizedPlan.version];
+            if (validator) {
+                const validation = validator.validate(finalizedPlan);
+                if (!validation.isValid) {
+                    return { isValid: false, error: 'Finalized plan validation failed: ' + validation.errors.join('; ') };
+                }
+            }
+            
+            return { isValid: true, planData: finalizedPlan };
+        } catch (error) {
+            return { isValid: false, error: 'Failed to finalize plan: ' + error.message };
+        }
+    };
+
     return {
         // Getters
         getTargetPlayers,
@@ -246,7 +503,19 @@ window.CAP.State = (function() {
         getAttackById,
         
         // Plan export
-        exportPlan
+        exportPlan,
+        exportExistingPlan,
+        
+        // Plan import and template assignment
+        importPlan,
+        hasTemplateAssigned,
+        hasSlowestUnitAssigned,
+        isAttackReady,
+        isPlanReadyForExecution,
+        needsTemplateAssignment,
+        getAttacksNeedingTemplates,
+        getUserTemplates,
+        finalizePlan
     };
 })();
 
@@ -1622,6 +1891,537 @@ window.CAP.UI = (function() {
         document.getElementById('cap-export-data').select();
     };
 
+    // Show direct export modal (for already finalized plans)
+    const showDirectExportModal = (base64String, planName, attackCount) => {
+        const modal = `
+            <div class="cap-content">
+                <h2 class="cap-title">Export Plan</h2>
+                <div style="margin-bottom: 15px;">
+                    <strong>Plan exported successfully!</strong><br>
+                    Attacks: ${attackCount}<br>
+                    Plan: ${planName || 'Unnamed Plan'}
+                </div>
+                <div style="margin-bottom: 15px;">
+                    <label for="cap-export-data-direct" style="display: block; margin-bottom: 5px; font-weight: bold;">Base64 Plan Data:</label>
+                    <textarea id="cap-export-data-direct" readonly style="width: 100%; height: 150px; padding: 5px; border: 1px solid #7D510F; border-radius: 2px; font-family: monospace; font-size: 12px; resize: vertical;">${base64String}</textarea>
+                </div>
+                <div style="margin-bottom: 15px; padding: 10px; background: rgba(255,215,0,0.1); border: 1px solid #DAA520; border-radius: 4px;">
+                    <strong>Instructions:</strong><br>
+                    1. Copy the base64 data above<br>
+                    2. Share this data with others<br>
+                    3. This plan is finalized and ready for execution
+                </div>
+                <div class="cap-button-container">
+                    <button class="cap-button" id="cap-copy-export-direct">Copy to Clipboard</button>
+                    <button class="cap-button" id="cap-export-close-direct">Close</button>
+                </div>
+            </div>
+        `;
+
+        Dialog.show('CoordinatedAttackPlanner', modal);
+
+        // Bind events
+        document.getElementById('cap-copy-export-direct').onclick = function() {
+            const textarea = document.getElementById('cap-export-data-direct');
+            textarea.select();
+            textarea.setSelectionRange(0, 99999);
+            
+            try {
+                document.execCommand('copy');
+                this.textContent = 'Copied!';
+                setTimeout(() => {
+                    this.textContent = 'Copy to Clipboard';
+                }, 2000);
+            } catch (err) {
+                alert('Copy failed. Please select and copy manually.');
+            }
+        };
+
+        document.getElementById('cap-export-close-direct').onclick = function() {
+            Dialog.close();
+        };
+
+        // Focus and select the textarea
+        document.getElementById('cap-export-data-direct').focus();
+        document.getElementById('cap-export-data-direct').select();
+    };
+
+    // Show import dialog
+    const showImportDialog = () => {
+        const content = `
+            <div class="cap-content">
+                <h2 class="cap-title">Import Plan</h2>
+                <p style="text-align: center; margin-bottom: 15px;">Paste the base64-encoded plan string below:</p>
+                <div style="margin-bottom: 15px;">
+                    <textarea id="cap-import-text" rows="8" 
+                        placeholder="Paste your plan string here..." 
+                        style="width: 100%; font-family: monospace; font-size: 12px; margin: 10px 0; padding: 8px; border: 1px solid #7D510F; border-radius: 4px;"></textarea>
+                </div>
+                <div class="cap-button-container" style="text-align: center;">
+                    <button class="cap-button" id="cap-import-confirm" style="margin-right: 10px;">Import Plan</button>
+                    <button class="cap-button" id="cap-import-cancel">Cancel</button>
+                </div>
+            </div>
+        `;
+        
+        Dialog.show('CoordinatedAttackPlanner', content);
+        
+        // Bind events
+        document.getElementById('cap-import-confirm').onclick = handleImportConfirm;
+        document.getElementById('cap-import-cancel').onclick = () => Dialog.close();
+        
+        // Focus on textarea
+        document.getElementById('cap-import-text').focus();
+    };
+
+    // Handle import confirmation
+    const handleImportConfirm = () => {
+        const planString = document.getElementById('cap-import-text').value.trim();
+        
+        if (!planString) {
+            alert('Please enter a plan string.');
+            return;
+        }
+        
+        const importResult = window.CAP.State.importPlan(planString);
+        
+        if (!importResult.isValid) {
+            alert(importResult.error);
+            return;
+        }
+        
+        Dialog.close();
+        
+        // Check if plan is ready for execution or needs template assignment
+        if (window.CAP.State.isPlanReadyForExecution(importResult.planData)) {
+            showExecutionScreen(importResult.planData);
+        } else {
+            showTemplateAssignmentScreen(importResult.planData);
+        }
+    };
+
+    // Show template assignment screen
+    const showTemplateAssignmentScreen = (planData) => {
+        const userTemplates = window.CAP.State.getUserTemplates();
+        const attacksNeedingTemplates = window.CAP.State.getAttacksNeedingTemplates(planData);
+        
+        if (userTemplates.length === 0) {
+            alert('No templates found in your account. Please create templates in-game first.');
+            return;
+        }
+        
+        const content = `
+            <div class="cap-template-assignment" style="padding: 20px;">
+                <h2>Template Assignment</h2>
+                <p><strong>Plan:</strong> ${planData.planName || 'Untitled Plan'}</p>
+                ${planData.description ? `<p><strong>Description:</strong> ${planData.description}</p>` : ''}
+                <p>Please select a template for each attack that needs one:</p>
+                
+                <div style="margin: 20px 0;">
+                    <table class="vis" style="width: 100%;">
+                        <thead>
+                            <tr>
+                                <th style="text-align: center;">#</th>
+                                <th>From</th>
+                                <th>To</th>
+                                <th>Landing Time</th>
+                                <th>Current Status</th>
+                                <th>Template</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${planData.attacks.map((attack, index) => {
+                                const isReady = window.CAP.State.isAttackReady(attack);
+                                const hasTemplate = window.CAP.State.hasTemplateAssigned(attack);
+                                const hasUnit = window.CAP.State.hasSlowestUnitAssigned(attack);
+                                
+                                let statusText = 'Needs Template';
+                                let statusColor = 'red';
+                                
+                                if (hasTemplate) {
+                                    statusText = `Template: ${attack.template}`;
+                                    statusColor = 'green';
+                                } else if (hasUnit) {
+                                    statusText = `Manual: ${attack.slowestUnit}`;
+                                    statusColor = 'blue';
+                                }
+                                
+                                return `
+                                    <tr>
+                                        <td style="text-align: center;">${index + 1}</td>
+                                        <td>${attack.attackingVillage}</td>
+                                        <td>${attack.targetVillage}</td>
+                                        <td>${formatDateTime(attack.arrivalTime)}</td>
+                                        <td style="color: ${statusColor}; font-weight: bold;">${statusText}</td>
+                                        <td>
+                                            ${isReady ? 
+                                                '<span style="color: green;">✓ Ready</span>' :
+                                                `<select id="template-${index}" class="cap-template-select" style="width: 150px;">
+                                                    <option value="">Select Template...</option>
+                                                    ${userTemplates.map(template => 
+                                                        `<option value="${template.name}">${template.name}</option>`
+                                                    ).join('')}
+                                                </select>`
+                                            }
+                                        </td>
+                                    </tr>
+                                `;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+                
+                <div class="cap-template-actions" style="margin-top: 20px;">
+                    <button class="cap-button" id="cap-finalize-plan" style="margin-right: 10px;">Finalize Plan</button>
+                    <button class="cap-button" id="cap-template-cancel">Cancel</button>
+                </div>
+            </div>
+        `;
+        
+        // Show full screen content
+        showFullScreenContent(content);
+        
+        // Bind events
+        document.getElementById('cap-finalize-plan').onclick = () => handleFinalizePlan(planData);
+        document.getElementById('cap-template-cancel').onclick = showInitialScreen;
+    };
+
+    // Handle plan finalization
+    const handleFinalizePlan = (planData) => {
+        // Collect template assignments for attacks that need them
+        const templateAssignments = [];
+        const attacksNeedingTemplates = window.CAP.State.getAttacksNeedingTemplates(planData);
+        let needsTemplateIndex = 0;
+        
+        for (let i = 0; i < planData.attacks.length; i++) {
+            const attack = planData.attacks[i];
+            
+            if (window.CAP.State.isAttackReady(attack)) {
+                // Attack already ready, no assignment needed
+                templateAssignments.push(null);
+            } else {
+                // Get template assignment for this attack
+                const templateSelect = document.getElementById(`template-${i}`);
+                const selectedTemplate = templateSelect ? templateSelect.value : '';
+                
+                if (!selectedTemplate) {
+                    alert(`Please select a template for attack ${i + 1}.`);
+                    return;
+                }
+                
+                templateAssignments.push(selectedTemplate);
+            }
+        }
+        
+        // Finalize the plan
+        const finalizeResult = window.CAP.State.finalizePlan(planData, templateAssignments);
+        
+        if (!finalizeResult.isValid) {
+            alert('Failed to finalize plan: ' + finalizeResult.error);
+            return;
+        }
+        
+        // Show finalized plan export dialog
+        showFinalizedPlanDialog(finalizeResult.planData);
+    };
+
+    // Show finalized plan dialog
+    const showFinalizedPlanDialog = (finalizedPlan) => {
+        // Generate base64 export
+        const exportResult = window.CAP.State.exportExistingPlan(finalizedPlan);
+        if (!exportResult.isValid) {
+            alert('Failed to export finalized plan: ' + exportResult.error);
+            return;
+        }
+        
+        const content = `
+            <div class="cap-content">
+                <h2 class="cap-title">Plan Finalized!</h2>
+                <p style="text-align: center;">Your plan has been successfully finalized with template assignments.</p>
+                
+                <div style="margin: 20px 0;">
+                    <p><strong>Plan Name:</strong> ${finalizedPlan.planName || 'Untitled'}</p>
+                    <p><strong>Total Attacks:</strong> ${finalizedPlan.attacks.length}</p>
+                    <p><strong>All attacks ready for execution:</strong> ✓</p>
+                </div>
+                
+                <p>Save this finalized plan string to import later for execution:</p>
+                <textarea id="cap-finalized-export" rows="8" readonly 
+                    style="width: 100%; font-family: monospace; font-size: 12px; margin: 10px 0; padding: 8px; border: 1px solid #7D510F; border-radius: 4px;">${exportResult.base64}</textarea>
+                
+                <div class="cap-button-container" style="text-align: center;">
+                    <button class="cap-button" id="cap-copy-finalized" style="margin-right: 10px;">Copy to Clipboard</button>
+                    <button class="cap-button" id="cap-execute-now" style="margin-right: 10px;">Execute Now</button>
+                    <button class="cap-button" id="cap-finalized-close">Close</button>
+                </div>
+            </div>
+        `;
+        
+        Dialog.show('CoordinatedAttackPlanner', content);
+        
+        // Bind events
+        document.getElementById('cap-copy-finalized').onclick = () => {
+            document.getElementById('cap-finalized-export').select();
+            document.execCommand('copy');
+            alert('Finalized plan copied to clipboard!');
+        };
+        
+        document.getElementById('cap-execute-now').onclick = () => {
+            Dialog.close();
+            showExecutionScreen(finalizedPlan);
+        };
+        
+        document.getElementById('cap-finalized-close').onclick = () => {
+            Dialog.close();
+            showInitialScreen();
+        };
+        
+        // Select and focus on the text
+        document.getElementById('cap-finalized-export').focus();
+        document.getElementById('cap-finalized-export').select();
+    };
+
+    // Show execution screen for finalized plans
+    const showExecutionScreen = (planData) => {
+        // Sort attacks by send time (launch time)
+        const sortedAttacks = [...planData.attacks].sort((a, b) => 
+            new Date(a.sendTime || 0) - new Date(b.sendTime || 0)
+        );
+        
+        const content = `
+            <div class="cap-execution-screen" style="padding: 20px;">
+                <h2>Plan Execution</h2>
+                <div style="margin-bottom: 20px;">
+                    <p><strong>Plan:</strong> ${planData.planName || 'Untitled Plan'}</p>
+                    ${planData.description ? `<p><strong>Description:</strong> ${planData.description}</p>` : ''}
+                    <p><strong>Total Attacks:</strong> ${planData.attacks.length}</p>
+                </div>
+                
+                <div class="cap-execution-controls" style="margin-bottom: 20px;">
+                    <button class="cap-button" id="cap-edit-templates" style="margin-right: 10px;">Edit Templates</button>
+                    <button class="cap-button" id="cap-export-execution" style="margin-right: 10px;">Export Plan</button>
+                    <button class="cap-button" id="cap-execution-back">Back to Main</button>
+                </div>
+                
+                <div id="cap-execution-table-container">
+                    <table class="vis" style="width: 100%;">
+                        <thead>
+                            <tr>
+                                <th>Launch Time</th>
+                                <th>Countdown</th>
+                                <th>From</th>
+                                <th>To</th>
+                                <th>Template</th>
+                                <th>Notes</th>
+                                <th>Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="cap-execution-tbody">
+                            ${sortedAttacks.map(attack => {
+                                const isReady = window.CAP.State.isAttackReady(attack);
+                                const hasTemplate = window.CAP.State.hasTemplateAssigned(attack);
+                                const hasUnit = window.CAP.State.hasSlowestUnitAssigned(attack);
+                                
+                                let templateDisplay = 'Not Set';
+                                if (hasTemplate) {
+                                    templateDisplay = attack.template;
+                                } else if (hasUnit) {
+                                    templateDisplay = `Manual (${attack.slowestUnit})`;
+                                }
+                                
+                                return `
+                                    <tr data-attack-id="${attack.id}" class="cap-attack-row">
+                                        <td>${attack.sendTime ? formatDateTime(attack.sendTime) : 'Not calculated'}</td>
+                                        <td class="cap-countdown" data-target="${attack.sendTime || ''}" style="font-weight: bold; font-family: monospace;">--:--:--</td>
+                                        <td>${attack.attackingVillage}</td>
+                                        <td>${attack.targetVillage}</td>
+                                        <td>${templateDisplay}</td>
+                                        <td>${attack.notes || ''}</td>
+                                        <td>
+                                            ${isReady && attack.sendTime ? 
+                                                `<button class="cap-button cap-launch-btn" 
+                                                        data-attack-id="${attack.id}"
+                                                        data-from="${attack.attackingVillage}"
+                                                        data-to="${attack.targetVillage}"
+                                                        data-template="${attack.template || ''}"
+                                                        style="background-color: #4CAF50;">
+                                                    Launch
+                                                </button>` :
+                                                `<button class="cap-button" disabled style="background-color: #ccc;">Not Ready</button>`
+                                            }
+                                        </td>
+                                    </tr>
+                                `;
+                            }).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+        
+        showFullScreenContent(content);
+        
+        // Bind events
+        document.getElementById('cap-edit-templates').onclick = () => showTemplateAssignmentScreen(planData);
+        document.getElementById('cap-export-execution').onclick = () => {
+            // Export the current finalized plan
+            const exportResult = window.CAP.State.exportExistingPlan(planData);
+            if (exportResult.isValid) {
+                showDirectExportModal(exportResult.base64, planData.planName, planData.attacks.length);
+            } else {
+                alert('Failed to export plan: ' + exportResult.error);
+            }
+        };
+        document.getElementById('cap-execution-back').onclick = showInitialScreen;
+        
+        // Bind launch buttons
+        document.querySelectorAll('.cap-launch-btn').forEach(button => {
+            button.onclick = () => handleLaunchAttack(button);
+        });
+        
+        // Start countdown timers
+        startCountdowns();
+    };
+
+    // Handle launching an attack
+    const handleLaunchAttack = (button) => {
+        const attackId = button.getAttribute('data-attack-id');
+        const fromCoords = button.getAttribute('data-from');
+        const toCoords = button.getAttribute('data-to');
+        const template = button.getAttribute('data-template');
+        
+        // Construct the attack URL
+        const [x, y] = toCoords.split('|');
+        let attackUrl = `/game.php?screen=place&x=${x}&y=${y}`;
+        
+        if (template && template !== '') {
+            attackUrl += `&template_id=${template}`;
+        }
+        
+        // Open in new window/tab
+        window.open(attackUrl, '_blank');
+        
+        // Mark attack as launched (visual feedback)
+        button.textContent = 'Launched';
+        button.style.backgroundColor = '#666';
+        button.disabled = true;
+        
+        // Add launched class to row
+        const row = button.closest('.cap-attack-row');
+        if (row) {
+            row.style.backgroundColor = '#f0f0f0';
+        }
+    };
+
+    // Start countdown timers
+    const startCountdowns = () => {
+        // Clear any existing timer
+        if (window.capCountdownTimer) {
+            clearInterval(window.capCountdownTimer);
+        }
+        
+        window.capCountdownTimer = setInterval(() => {
+            document.querySelectorAll('.cap-countdown').forEach(element => {
+                const targetTime = element.getAttribute('data-target');
+                if (!targetTime) {
+                    element.textContent = '--:--:--';
+                    return;
+                }
+                
+                const target = new Date(targetTime);
+                const now = new Date();
+                const diff = target - now;
+                
+                if (diff <= 0) {
+                    element.textContent = 'LAUNCH NOW!';
+                    element.style.color = 'red';
+                    element.style.fontWeight = 'bold';
+                    
+                    // Flash the row
+                    const row = element.closest('.cap-attack-row');
+                    if (row && !row.classList.contains('cap-flash')) {
+                        row.classList.add('cap-flash');
+                        row.style.backgroundColor = '#ffcccc';
+                    }
+                } else {
+                    const hours = Math.floor(diff / (1000 * 60 * 60));
+                    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                    const seconds = Math.floor((diff % (1000 * 60)) / 1000);
+                    
+                    element.textContent = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+                    element.style.color = diff < 5 * 60 * 1000 ? 'orange' : 'black'; // Orange if less than 5 minutes
+                    
+                    // Remove flash if time is not up
+                    const row = element.closest('.cap-attack-row');
+                    if (row && row.classList.contains('cap-flash')) {
+                        row.classList.remove('cap-flash');
+                        row.style.backgroundColor = '';
+                    }
+                }
+            });
+        }, 1000);
+    };
+
+    // Format date/time for display
+    const formatDateTime = (isoString) => {
+        try {
+            const date = new Date(isoString);
+            return date.toLocaleString('en-GB', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                second: '2-digit'
+            });
+        } catch (error) {
+            return 'Invalid date';
+        }
+    };
+
+    // Show initial screen helper
+    const showInitialScreen = () => {
+        // Clear any running timers
+        if (window.capCountdownTimer) {
+            clearInterval(window.capCountdownTimer);
+        }
+        
+        // Reset to initial screen
+        window.location.reload();
+    };
+
+    // Show full screen content helper
+    const showFullScreenContent = (content) => {
+        // Hide any existing content
+        const container = document.getElementById('contentContainer');
+        if (container) {
+            container.style.display = 'none';
+        }
+        
+        // Create or update full screen container
+        let fullScreenContainer = document.getElementById('cap-fullscreen-container');
+        if (!fullScreenContainer) {
+            fullScreenContainer = document.createElement('div');
+            fullScreenContainer.id = 'cap-fullscreen-container';
+            fullScreenContainer.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background: white;
+                z-index: 10000;
+                overflow: auto;
+                padding: 20px;
+                box-sizing: border-box;
+            `;
+            document.body.appendChild(fullScreenContainer);
+        }
+        
+        fullScreenContainer.innerHTML = content;
+        fullScreenContainer.style.display = 'block';
+    };
+
     return {
         createModal,
         showPlanDesignPage,
@@ -1638,7 +2438,15 @@ window.CAP.UI = (function() {
         showMassAddDialog,
         updateMassAddPreview,
         updateAttackTable,
-        showExportPlanModal
+        showExportPlanModal,
+        
+        // Import and execution functions
+        showImportDialog,
+        showTemplateAssignmentScreen,
+        showExecutionScreen,
+        showInitialScreen,
+        formatDateTime,
+        showDirectExportModal
     };
 })();
 
@@ -1662,7 +2470,7 @@ window.CAP.UI = (function() {
         };
         document.getElementById('cap-import-btn').onclick = function() {
             Dialog.close();
-            alert('Import mode not yet implemented.');
+            window.CAP.UI.showImportDialog();
         };
     }
 

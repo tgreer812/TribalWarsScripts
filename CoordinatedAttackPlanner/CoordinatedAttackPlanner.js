@@ -14,7 +14,7 @@
         };
         document.getElementById('cap-import-btn').onclick = function() {
             Dialog.close();
-            alert('Import mode not yet implemented.');
+            window.CAP.UI.showImportDialog();
         };
     }
 
