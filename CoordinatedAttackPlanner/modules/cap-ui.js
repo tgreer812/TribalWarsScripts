@@ -1672,7 +1672,18 @@ window.CAP.UI = (function() {
                 }
                 
                 const target = new Date(targetTime);
-                const now = new Date();
+                let now;
+                
+                try {
+                    now = window.CAP.getCurrentServerTime();
+                } catch (error) {
+                    // If we can't get server time, show error in countdown
+                    element.textContent = 'TIME ERROR!';
+                    element.style.color = 'red';
+                    element.style.fontWeight = 'bold';
+                    return;
+                }
+                
                 const diff = target - now;
                 
                 if (diff <= 0) {

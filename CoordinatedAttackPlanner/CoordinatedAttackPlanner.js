@@ -1,4 +1,81 @@
 (function() {
+    // Utility function to get current server time
+    function getCurrentServerTime() {
+        try {
+            // Try to get server time from the DOM element that displays it
+            const serverTimeElement = document.getElementById('serverTime');
+            if (serverTimeElement) {
+                const timeText = serverTimeElement.closest('p').textContent;
+                const timeMatch = timeText.match(/\d+/g);
+                
+                if (timeMatch && timeMatch.length >= 6) {
+                    const [hour, min, sec, day, month, year] = timeMatch;
+                    return new Date(year, month - 1, day, hour, min, sec);
+                }
+            }
+            
+            // Fallback: try to find server time in other common locations
+            const timeElements = document.querySelectorAll('td, span, div');
+            for (const element of timeElements) {
+                const text = element.textContent;
+                // Look for time format like "12:34:56 01/02/2025" or similar
+                const timeMatch = text.match(/(\d{1,2}):(\d{2}):(\d{2})\s+(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+                if (timeMatch) {
+                    const [, hour, min, sec, day, month, year] = timeMatch;
+                    return new Date(year, month - 1, day, hour, min, sec);
+                }
+            }
+            
+            // If we can't find server time, this is a critical error
+            showServerTimeError();
+            throw new Error('Cannot find server time - coordinated attack timing would be inaccurate');
+        } catch (e) {
+            showServerTimeError();
+            throw new Error('Error getting server time: ' + e.message);
+        }
+    }
+
+    // Show critical error banner when server time cannot be determined
+    function showServerTimeError() {
+        // Remove any existing error banner
+        const existingBanner = document.getElementById('cap-server-time-error');
+        if (existingBanner) existingBanner.remove();
+
+        // Create error banner
+        const errorBanner = document.createElement('div');
+        errorBanner.id = 'cap-server-time-error';
+        errorBanner.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            background-color: #d32f2f;
+            color: white;
+            padding: 15px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 14px;
+            z-index: 999999;
+            border-bottom: 3px solid #b71c1c;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        `;
+        errorBanner.innerHTML = `
+            ⚠️ CRITICAL ERROR: Cannot determine server time! 
+            Coordinated Attack Planner cannot function safely. 
+            Please refresh the page and try again. 
+            <button onclick="this.parentElement.remove()" style="margin-left: 15px; background: white; color: #d32f2f; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer;">Dismiss</button>
+        `;
+
+        // Insert at the beginning of the body
+        document.body.insertBefore(errorBanner, document.body.firstChild);
+
+        console.error('CAP: Critical error - cannot determine server time for coordinated attacks');
+    }
+
+    // Make the utility function globally available
+    window.CAP = window.CAP || {};
+    window.CAP.getCurrentServerTime = getCurrentServerTime;
+
     // Utility to create modal
     function createModal() {
         // Remove any existing modal
@@ -371,21 +448,12 @@
 
         // Validate landing time is in the future
         const landingDate = new Date(landingTime.replace(' ', 'T'));
-        const now = new Date();
-        
-        // Safely get server time - fallback to local time if server_utc_diff is not available
         let serverTime;
+        
         try {
-            const utcDiff = (typeof game_data !== 'undefined' && game_data.server_utc_diff) ? 
-                game_data.server_utc_diff : 0;
-            serverTime = new Date(now.getTime() + (utcDiff * 1000));
-            
-            // Validate the server time is valid
-            if (isNaN(serverTime.getTime())) {
-                serverTime = now; // Fallback to local time
-            }
-        } catch (e) {
-            serverTime = now; // Fallback to local time
+            serverTime = window.CAP.getCurrentServerTime();
+        } catch (error) {
+            return { isValid: false, message: 'Cannot validate time - unable to determine server time. Please refresh the page.' };
         }
         
         if (landingDate <= serverTime) {
