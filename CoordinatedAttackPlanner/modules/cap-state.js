@@ -145,7 +145,6 @@ window.CAP.State = (function() {
                     id: attack.id,
                     attackingVillage: attack.attackingVillage.coords,
                     targetVillage: attack.targetVillage.coords,
-                    sendTime: attack.sendTime || "", // Empty - calculated at import time
                     template: attack.template || "", // Empty - assigned during finalization
                     slowestUnit: attack.slowestUnit || "", // Empty - assigned during finalization
                     arrivalTime: attack.arrivalTime,
@@ -435,14 +434,8 @@ window.CAP.State = (function() {
             const finalizedAttacks = planData.attacks.map((attack, index) => {
                 // Check if attack already has valid template or slowest unit
                 if (isAttackReady(attack)) {
-                    // Attack is already ready, just ensure sendTime is calculated
-                    let sendTime = attack.sendTime;
-                    if (!sendTime || sendTime === "") {
-                        const unit = attack.slowestUnit || calculateSlowestUnit(userTemplates.find(t => t.name === attack.template));
-                        sendTime = calculateSendTime(attack.arrivalTime, attack.attackingVillage, attack.targetVillage, unit);
-                    }
-                    
-                    return { ...attack, sendTime };
+                    // Attack is already ready, no changes needed
+                    return { ...attack };
                 }
                 
                 // Attack needs finalization from assignments
@@ -468,13 +461,10 @@ window.CAP.State = (function() {
                     template = null;
                 }
                 
-                const sendTime = calculateSendTime(attack.arrivalTime, attack.attackingVillage, attack.targetVillage, slowestUnit);
-                
                 return {
                     ...attack,
                     template: template ? template.name : attack.template,
-                    slowestUnit: slowestUnit,
-                    sendTime: sendTime
+                    slowestUnit: slowestUnit
                 };
             });
             

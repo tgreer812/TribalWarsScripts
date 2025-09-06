@@ -76,6 +76,42 @@
     window.CAP = window.CAP || {};
     window.CAP.getCurrentServerTime = getCurrentServerTime;
 
+    // Utility function to calculate send time based on arrival time, distance, and unit speed
+    function calculateSendTime(arrivalTime, attackingCoords, targetCoords, slowestUnit) {
+        try {
+            const unitSpeeds = {
+                spear: 18, sword: 22, axe: 18, archer: 18, spy: 9,
+                light: 10, marcher: 10, heavy: 11, ram: 30, catapult: 30,
+                knight: 10, snob: 35
+            };
+            
+            // Calculate distance between villages
+            const [x1, y1] = attackingCoords.split('|').map(Number);
+            const [x2, y2] = targetCoords.split('|').map(Number);
+            const distance = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+            
+            // Get unit speed and world settings
+            const unitSpeed = unitSpeeds[slowestUnit] || 18;
+            const worldSpeed = window.game_data ? (window.game_data.speed || 1) : 1;
+            const unitSpeed_config = window.game_data ? (window.game_data.config?.speed || 1) : 1;
+            
+            // Calculate travel time in minutes
+            const travelTimeMinutes = distance * unitSpeed / (worldSpeed * unitSpeed_config);
+            
+            // Calculate send time
+            const arrivalDate = new Date(arrivalTime);
+            const sendDate = new Date(arrivalDate.getTime() - (travelTimeMinutes * 60 * 1000));
+            
+            return sendDate.toISOString();
+        } catch (error) {
+            console.warn('Error calculating send time:', error);
+            throw new Error('Cannot calculate send time: ' + error.message);
+        }
+    }
+
+    // Make the calculateSendTime function globally available
+    window.CAP.calculateSendTime = calculateSendTime;
+
     // Utility to create modal
     function createModal() {
         // Remove any existing modal
@@ -495,8 +531,7 @@
             arrivalTime: new Date(landingTime.replace(' ', 'T') + '.000Z').toISOString(),
             notes: notes,
             template: '', // Empty initially, filled during plan execution
-            slowestUnit: '', // Empty initially, filled during plan execution
-            sendTime: '' // Empty initially, filled during plan finalization
+            slowestUnit: '' // Empty initially, filled during plan execution
         };
 
         return { isValid: true, attack: attack };

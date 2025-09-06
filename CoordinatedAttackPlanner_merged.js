@@ -1,5 +1,5 @@
 ﻿// Coordinated Attack Planner - Merged Build
-// Generated on: 2025-09-05 23:22:36
+// Generated on: 2025-09-05 23:43:03
 // This file is auto-generated. Do not edit directly.
 
 // ==================================================
@@ -153,7 +153,6 @@ window.CAP.State = (function() {
                     id: attack.id,
                     attackingVillage: attack.attackingVillage.coords,
                     targetVillage: attack.targetVillage.coords,
-                    sendTime: attack.sendTime || "", // Empty - calculated at import time
                     template: attack.template || "", // Empty - assigned during finalization
                     slowestUnit: attack.slowestUnit || "", // Empty - assigned during finalization
                     arrivalTime: attack.arrivalTime,
@@ -443,14 +442,8 @@ window.CAP.State = (function() {
             const finalizedAttacks = planData.attacks.map((attack, index) => {
                 // Check if attack already has valid template or slowest unit
                 if (isAttackReady(attack)) {
-                    // Attack is already ready, just ensure sendTime is calculated
-                    let sendTime = attack.sendTime;
-                    if (!sendTime || sendTime === "") {
-                        const unit = attack.slowestUnit || calculateSlowestUnit(userTemplates.find(t => t.name === attack.template));
-                        sendTime = calculateSendTime(attack.arrivalTime, attack.attackingVillage, attack.targetVillage, unit);
-                    }
-                    
-                    return { ...attack, sendTime };
+                    // Attack is already ready, no changes needed
+                    return { ...attack };
                 }
                 
                 // Attack needs finalization from assignments
@@ -476,13 +469,10 @@ window.CAP.State = (function() {
                     template = null;
                 }
                 
-                const sendTime = calculateSendTime(attack.arrivalTime, attack.attackingVillage, attack.targetVillage, slowestUnit);
-                
                 return {
                     ...attack,
                     template: template ? template.name : attack.template,
-                    slowestUnit: slowestUnit,
-                    sendTime: sendTime
+                    slowestUnit: slowestUnit
                 };
             });
             
@@ -954,11 +944,6 @@ window.CAP.Validation = (function() {
                 const timestampRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
                 if (attack.arrivalTime && !timestampRegex.test(attack.arrivalTime)) {
                     errors.push(prefix + 'Invalid arrivalTime timestamp format');
-                }
-
-                // Validate sendTime (should be empty string or valid timestamp)
-                if (attack.sendTime !== undefined && attack.sendTime !== "" && !timestampRegex.test(attack.sendTime)) {
-                    errors.push(prefix + 'Invalid sendTime format (should be empty string or valid timestamp)');
                 }
 
                 // Validate template and slowestUnit (should be strings)
@@ -2355,9 +2340,15 @@ window.CAP.UI = (function() {
     // Show execution screen for finalized plans
     const showExecutionScreen = (planData) => {
         // Sort attacks by send time (launch time)
-        const sortedAttacks = [...planData.attacks].sort((a, b) => 
-            new Date(a.sendTime || 0) - new Date(b.sendTime || 0)
-        );
+        const sortedAttacks = [...planData.attacks].sort((a, b) => {
+            const aSendTime = window.CAP.State.isAttackReady(a) ? 
+                window.CAP.calculateSendTime(a.arrivalTime, a.attackingVillage, a.targetVillage, a.slowestUnit || a.template) : 
+                new Date(0);
+            const bSendTime = window.CAP.State.isAttackReady(b) ? 
+                window.CAP.calculateSendTime(b.arrivalTime, b.attackingVillage, b.targetVillage, b.slowestUnit || b.template) : 
+                new Date(0);
+            return new Date(aSendTime) - new Date(bSendTime);
+        });
         
         const content = `
             <div class="cap-execution-screen" style="padding: 20px;">
@@ -2400,16 +2391,35 @@ window.CAP.UI = (function() {
                                     templateDisplay = `Manual (${attack.slowestUnit})`;
                                 }
                                 
+                                // Calculate send time dynamically if attack is ready
+                                let sendTimeDisplay = 'Not calculated';
+                                let sendTimeTarget = '';
+                                if (isReady) {
+                                    try {
+                                        const sendTime = window.CAP.calculateSendTime(
+                                            attack.arrivalTime, 
+                                            attack.attackingVillage, 
+                                            attack.targetVillage, 
+                                            attack.slowestUnit || attack.template
+                                        );
+                                        sendTimeDisplay = formatDateTime(sendTime);
+                                        sendTimeTarget = sendTime;
+                                    } catch (error) {
+                                        sendTimeDisplay = 'Calculation Error';
+                                        console.error('Error calculating send time for display:', error);
+                                    }
+                                }
+                                
                                 return `
                                     <tr data-attack-id="${attack.id}" class="cap-attack-row">
-                                        <td>${attack.sendTime ? formatDateTime(attack.sendTime) : 'Not calculated'}</td>
-                                        <td class="cap-countdown" data-target="${attack.sendTime || ''}" style="font-weight: bold; font-family: monospace;">--:--:--</td>
+                                        <td>${sendTimeDisplay}</td>
+                                        <td class="cap-countdown" data-target="${sendTimeTarget}" style="font-weight: bold; font-family: monospace;">--:--:--</td>
                                         <td>${attack.attackingVillage}</td>
                                         <td>${attack.targetVillage}</td>
                                         <td>${templateDisplay}</td>
                                         <td>${attack.notes || ''}</td>
                                         <td>
-                                            ${isReady && attack.sendTime ? 
+                                            ${isReady && sendTimeTarget ? 
                                                 (hasTemplate ? 
                                                     `<button class="cap-button cap-launch-btn" 
                                                             data-attack-id="${attack.id}"
@@ -2879,6 +2889,42 @@ window.CAP.UI = (function() {
     window.CAP = window.CAP || {};
     window.CAP.getCurrentServerTime = getCurrentServerTime;
 
+    // Utility function to calculate send time based on arrival time, distance, and unit speed
+    function calculateSendTime(arrivalTime, attackingCoords, targetCoords, slowestUnit) {
+        try {
+            const unitSpeeds = {
+                spear: 18, sword: 22, axe: 18, archer: 18, spy: 9,
+                light: 10, marcher: 10, heavy: 11, ram: 30, catapult: 30,
+                knight: 10, snob: 35
+            };
+            
+            // Calculate distance between villages
+            const [x1, y1] = attackingCoords.split('|').map(Number);
+            const [x2, y2] = targetCoords.split('|').map(Number);
+            const distance = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+            
+            // Get unit speed and world settings
+            const unitSpeed = unitSpeeds[slowestUnit] || 18;
+            const worldSpeed = window.game_data ? (window.game_data.speed || 1) : 1;
+            const unitSpeed_config = window.game_data ? (window.game_data.config?.speed || 1) : 1;
+            
+            // Calculate travel time in minutes
+            const travelTimeMinutes = distance * unitSpeed / (worldSpeed * unitSpeed_config);
+            
+            // Calculate send time
+            const arrivalDate = new Date(arrivalTime);
+            const sendDate = new Date(arrivalDate.getTime() - (travelTimeMinutes * 60 * 1000));
+            
+            return sendDate.toISOString();
+        } catch (error) {
+            console.warn('Error calculating send time:', error);
+            throw new Error('Cannot calculate send time: ' + error.message);
+        }
+    }
+
+    // Make the calculateSendTime function globally available
+    window.CAP.calculateSendTime = calculateSendTime;
+
     // Utility to create modal
     function createModal() {
         // Remove any existing modal
@@ -3298,8 +3344,7 @@ window.CAP.UI = (function() {
             arrivalTime: new Date(landingTime.replace(' ', 'T') + '.000Z').toISOString(),
             notes: notes,
             template: '', // Empty initially, filled during plan execution
-            slowestUnit: '', // Empty initially, filled during plan execution
-            sendTime: '' // Empty initially, filled during plan finalization
+            slowestUnit: '' // Empty initially, filled during plan execution
         };
 
         return { isValid: true, attack: attack };

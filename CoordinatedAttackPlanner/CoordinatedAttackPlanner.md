@@ -50,7 +50,6 @@ The plan export format uses a well-defined JSON structure that is base64-encoded
       "id": "attack_1725534600_abc123def",
       "attackingVillage": "500|500",
       "targetVillage": "501|501",
-      "sendTime": "",
       "template": "",
       "slowestUnit": "",
       "arrivalTime": "2025-09-05T12:30:00.000Z",
@@ -71,11 +70,12 @@ The plan export format uses a well-defined JSON structure that is base64-encoded
 
 ### Key Fields
 - **template** and **slowestUnit**: Empty strings during planning phase, filled during finalization
-- **sendTime**: When the attack should be sent (empty during planning, calculated at import time)
 - **arrivalTime**: When the attack should land (user-specified landing time)
-- **attackingVillage**: Coordinates of the attacking village (e.g., "500|500")
+- **attackingVillage**: Coordinates of the attacking village (e.g., "500|500")  
 - **targetVillage**: Coordinates of the target village (e.g., "501|501")
 - **id**: Unique identifier with pattern `attack_\d+_[a-z0-9]+`
+
+**Note**: Send time is calculated dynamically based on distance, unit speed, and arrival time rather than being stored.
 
 ---
 
@@ -147,9 +147,9 @@ Operations (ops) may span hours or days, making it impractical to require users 
 ## Calculation & Scheduling
 
 - **Calculate Launch Times:**  
-  - For each attack, calculate the exact server launch time needed to hit the landing time, considering unit speed, world speed, and distance. The slowest unit in the selected template determines the travel speed.
+  - For each attack, the exact server launch time is calculated dynamically based on the arrival time, distance between villages, and the slowest unit's travel speed. This calculation factors in unit speed, world speed, and unit speed configuration.
 - **Display Countdown Timers:**  
-  - Show a live countdown for each attack, updating every second.
+  - Show a live countdown for each attack, updating every second based on the calculated send time.
 - **Manual Launch:**  
   - Provide a button for each attack to open/send the attack manually when the timer hits zero.
   - After the timer hits zero, the row's appearance changes to indicate the time has passed, but the launch button remains active so the user can still send the attack if slightly late.

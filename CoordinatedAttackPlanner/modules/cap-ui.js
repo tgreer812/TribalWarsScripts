@@ -1362,9 +1362,15 @@ window.CAP.UI = (function() {
     // Show execution screen for finalized plans
     const showExecutionScreen = (planData) => {
         // Sort attacks by send time (launch time)
-        const sortedAttacks = [...planData.attacks].sort((a, b) => 
-            new Date(a.sendTime || 0) - new Date(b.sendTime || 0)
-        );
+        const sortedAttacks = [...planData.attacks].sort((a, b) => {
+            const aSendTime = window.CAP.State.isAttackReady(a) ? 
+                window.CAP.calculateSendTime(a.arrivalTime, a.attackingVillage, a.targetVillage, a.slowestUnit || a.template) : 
+                new Date(0);
+            const bSendTime = window.CAP.State.isAttackReady(b) ? 
+                window.CAP.calculateSendTime(b.arrivalTime, b.attackingVillage, b.targetVillage, b.slowestUnit || b.template) : 
+                new Date(0);
+            return new Date(aSendTime) - new Date(bSendTime);
+        });
         
         const content = `
             <div class="cap-execution-screen" style="padding: 20px;">
@@ -1407,16 +1413,35 @@ window.CAP.UI = (function() {
                                     templateDisplay = `Manual (${attack.slowestUnit})`;
                                 }
                                 
+                                // Calculate send time dynamically if attack is ready
+                                let sendTimeDisplay = 'Not calculated';
+                                let sendTimeTarget = '';
+                                if (isReady) {
+                                    try {
+                                        const sendTime = window.CAP.calculateSendTime(
+                                            attack.arrivalTime, 
+                                            attack.attackingVillage, 
+                                            attack.targetVillage, 
+                                            attack.slowestUnit || attack.template
+                                        );
+                                        sendTimeDisplay = formatDateTime(sendTime);
+                                        sendTimeTarget = sendTime;
+                                    } catch (error) {
+                                        sendTimeDisplay = 'Calculation Error';
+                                        console.error('Error calculating send time for display:', error);
+                                    }
+                                }
+                                
                                 return `
                                     <tr data-attack-id="${attack.id}" class="cap-attack-row">
-                                        <td>${attack.sendTime ? formatDateTime(attack.sendTime) : 'Not calculated'}</td>
-                                        <td class="cap-countdown" data-target="${attack.sendTime || ''}" style="font-weight: bold; font-family: monospace;">--:--:--</td>
+                                        <td>${sendTimeDisplay}</td>
+                                        <td class="cap-countdown" data-target="${sendTimeTarget}" style="font-weight: bold; font-family: monospace;">--:--:--</td>
                                         <td>${attack.attackingVillage}</td>
                                         <td>${attack.targetVillage}</td>
                                         <td>${templateDisplay}</td>
                                         <td>${attack.notes || ''}</td>
                                         <td>
-                                            ${isReady && attack.sendTime ? 
+                                            ${isReady && sendTimeTarget ? 
                                                 (hasTemplate ? 
                                                     `<button class="cap-button cap-launch-btn" 
                                                             data-attack-id="${attack.id}"

@@ -388,11 +388,6 @@ window.CAP.Validation = (function() {
                     errors.push(prefix + 'Invalid arrivalTime timestamp format');
                 }
 
-                // Validate sendTime (should be empty string or valid timestamp)
-                if (attack.sendTime !== undefined && attack.sendTime !== "" && !timestampRegex.test(attack.sendTime)) {
-                    errors.push(prefix + 'Invalid sendTime format (should be empty string or valid timestamp)');
-                }
-
                 // Validate template and slowestUnit (should be strings)
                 if (attack.template !== undefined && typeof attack.template !== 'string') {
                     errors.push(prefix + 'template must be a string');
