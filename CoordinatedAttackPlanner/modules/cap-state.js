@@ -300,31 +300,66 @@ window.CAP.State = (function() {
         return validUnits.includes(unitType);
     };
 
-    // Get user's available templates from Tribal Wars
+    // Get user's available templates from Tribal Wars API
     const getUserTemplates = () => {
         try {
-            // Try to get templates from the game's template system
-            // This is a placeholder - actual implementation would access TW's template data
-            if (window.game_data && window.game_data.templates) {
-                return window.game_data.templates;
-            }
+            // Try to fetch templates from the API
+            const world = window.location.hostname.split('.')[0];
+            const apiUrl = `/game.php?village=${game_data.village.id}&screen=api&ajax=templates`;
             
-            // Fallback: try to parse from the current page if we're on the templates page
-            if (window.location.href.includes('screen=place&mode=templates')) {
-                return parseTemplatesFromPage();
-            }
+            // Make synchronous request (since this is needed immediately for UI)
+            const xhr = new XMLHttpRequest();
+            xhr.open('GET', apiUrl, false); // false = synchronous
+            xhr.send();
             
-            // Mock data for development/testing
-            return [
-                { name: "Full Nuke", units: { axe: 8000, light: 3000, marcher: 1000, ram: 300, catapult: 100 } },
-                { name: "Fake", units: { spear: 1, spy: 5 } },
-                { name: "Noble Train", units: { axe: 6000, light: 2000, snob: 1 } },
-                { name: "Clear", units: { axe: 5000, light: 2000, ram: 50 } }
-            ];
+            if (xhr.status === 200) {
+                const data = JSON.parse(xhr.responseText);
+                
+                // Parse templates from API response
+                const templates = [];
+                if (data && data.templates) {
+                    for (const [templateId, templateData] of Object.entries(data.templates)) {
+                        templates.push({
+                            id: templateId,
+                            name: templateData.name || `Template ${templateId}`,
+                            units: templateData.units || {}
+                        });
+                    }
+                }
+                
+                if (templates.length > 0) {
+                    return templates;
+                }
+            }
         } catch (error) {
-            console.warn('Could not load user templates:', error);
-            return [];
+            console.warn('Could not fetch templates from API:', error);
         }
+        
+        try {
+            // Fallback: try to get templates from game_data if available
+            if (window.game_data && window.game_data.templates) {
+                const templates = [];
+                for (const [templateId, templateData] of Object.entries(window.game_data.templates)) {
+                    templates.push({
+                        id: templateId,
+                        name: templateData.name || `Template ${templateId}`,
+                        units: templateData.units || {}
+                    });
+                }
+                return templates;
+            }
+        } catch (error) {
+            console.warn('Could not load templates from game_data:', error);
+        }
+        
+        // Mock data for development/testing when no templates are available
+        console.warn('Using mock template data - please ensure you have templates created in-game');
+        return [
+            { id: "1", name: "Full Nuke", units: { axe: 8000, light: 3000, marcher: 1000, ram: 300, catapult: 100 } },
+            { id: "2", name: "Fake", units: { spear: 1, spy: 5 } },
+            { id: "3", name: "Noble Train", units: { axe: 6000, light: 2000, snob: 1 } },
+            { id: "4", name: "Clear", units: { axe: 5000, light: 2000, ram: 50 } }
+        ];
     };
 
     // Parse templates from the templates page (fallback method)

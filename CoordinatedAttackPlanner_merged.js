@@ -1,5 +1,5 @@
 ﻿// Coordinated Attack Planner - Merged Build
-// Generated on: 2025-09-05 20:16:56
+// Generated on: 2025-09-05 20:24:21
 // This file is auto-generated. Do not edit directly.
 
 // ==================================================
@@ -308,31 +308,66 @@ window.CAP.State = (function() {
         return validUnits.includes(unitType);
     };
 
-    // Get user's available templates from Tribal Wars
+    // Get user's available templates from Tribal Wars API
     const getUserTemplates = () => {
         try {
-            // Try to get templates from the game's template system
-            // This is a placeholder - actual implementation would access TW's template data
-            if (window.game_data && window.game_data.templates) {
-                return window.game_data.templates;
-            }
+            // Try to fetch templates from the API
+            const world = window.location.hostname.split('.')[0];
+            const apiUrl = `/game.php?village=${game_data.village.id}&screen=api&ajax=templates`;
             
-            // Fallback: try to parse from the current page if we're on the templates page
-            if (window.location.href.includes('screen=place&mode=templates')) {
-                return parseTemplatesFromPage();
-            }
+            // Make synchronous request (since this is needed immediately for UI)
+            const xhr = new XMLHttpRequest();
+            xhr.open('GET', apiUrl, false); // false = synchronous
+            xhr.send();
             
-            // Mock data for development/testing
-            return [
-                { name: "Full Nuke", units: { axe: 8000, light: 3000, marcher: 1000, ram: 300, catapult: 100 } },
-                { name: "Fake", units: { spear: 1, spy: 5 } },
-                { name: "Noble Train", units: { axe: 6000, light: 2000, snob: 1 } },
-                { name: "Clear", units: { axe: 5000, light: 2000, ram: 50 } }
-            ];
+            if (xhr.status === 200) {
+                const data = JSON.parse(xhr.responseText);
+                
+                // Parse templates from API response
+                const templates = [];
+                if (data && data.templates) {
+                    for (const [templateId, templateData] of Object.entries(data.templates)) {
+                        templates.push({
+                            id: templateId,
+                            name: templateData.name || `Template ${templateId}`,
+                            units: templateData.units || {}
+                        });
+                    }
+                }
+                
+                if (templates.length > 0) {
+                    return templates;
+                }
+            }
         } catch (error) {
-            console.warn('Could not load user templates:', error);
-            return [];
+            console.warn('Could not fetch templates from API:', error);
         }
+        
+        try {
+            // Fallback: try to get templates from game_data if available
+            if (window.game_data && window.game_data.templates) {
+                const templates = [];
+                for (const [templateId, templateData] of Object.entries(window.game_data.templates)) {
+                    templates.push({
+                        id: templateId,
+                        name: templateData.name || `Template ${templateId}`,
+                        units: templateData.units || {}
+                    });
+                }
+                return templates;
+            }
+        } catch (error) {
+            console.warn('Could not load templates from game_data:', error);
+        }
+        
+        // Mock data for development/testing when no templates are available
+        console.warn('Using mock template data - please ensure you have templates created in-game');
+        return [
+            { id: "1", name: "Full Nuke", units: { axe: 8000, light: 3000, marcher: 1000, ram: 300, catapult: 100 } },
+            { id: "2", name: "Fake", units: { spear: 1, spy: 5 } },
+            { id: "3", name: "Noble Train", units: { axe: 6000, light: 2000, snob: 1 } },
+            { id: "4", name: "Clear", units: { axe: 5000, light: 2000, ram: 50 } }
+        ];
     };
 
     // Parse templates from the templates page (fallback method)
@@ -1951,14 +1986,24 @@ window.CAP.UI = (function() {
         const content = `
             <div class="cap-content">
                 <h2 class="cap-title">Import Plan</h2>
-                <p style="text-align: center; margin-bottom: 15px;">Paste the base64-encoded plan string below:</p>
-                <div style="margin-bottom: 15px;">
-                    <textarea id="cap-import-text" rows="8" 
-                        placeholder="Paste your plan string here..." 
-                        style="width: 100%; font-family: monospace; font-size: 12px; margin: 10px 0; padding: 8px; border: 1px solid #7D510F; border-radius: 4px;"></textarea>
+                
+                <div style="margin-bottom: 15px; padding: 10px; background: rgba(255,215,0,0.1); border: 1px solid #DAA520; border-radius: 4px;">
+                    <strong>Instructions:</strong><br>
+                    1. Get the base64-encoded plan string from the plan creator<br>
+                    2. Paste it in the text area below<br>
+                    3. Click "Import Plan" to load the attacks<br>
+                    4. Assign templates if needed, then execute!
                 </div>
-                <div class="cap-button-container" style="text-align: center;">
-                    <button class="cap-button" id="cap-import-confirm" style="margin-right: 10px;">Import Plan</button>
+                
+                <div style="margin-bottom: 15px;">
+                    <label for="cap-import-text" style="display: block; margin-bottom: 5px; font-weight: bold;">Plan Data:</label>
+                    <textarea id="cap-import-text" rows="8" 
+                        placeholder="Paste your base64-encoded plan string here..." 
+                        style="width: 100%; font-family: monospace; font-size: 12px; padding: 8px; border: 1px solid #7D510F; border-radius: 4px; resize: vertical;"></textarea>
+                </div>
+                
+                <div class="cap-button-container">
+                    <button class="cap-button" id="cap-import-confirm">Import Plan</button>
                     <button class="cap-button" id="cap-import-cancel">Cancel</button>
                 </div>
             </div>
@@ -2002,31 +2047,89 @@ window.CAP.UI = (function() {
 
     // Show template assignment screen
     const showTemplateAssignmentScreen = (planData) => {
-        const userTemplates = window.CAP.State.getUserTemplates();
-        const attacksNeedingTemplates = window.CAP.State.getAttacksNeedingTemplates(planData);
+        // Show loading state first
+        const loadingContent = `
+            <div class="cap-content">
+                <h2 class="cap-title">Template Assignment</h2>
+                <div style="text-align: center; margin: 40px 0;">
+                    <div class="cap-spinner"></div>
+                    <span class="cap-loading-indicator">Loading templates...</span>
+                </div>
+            </div>
+        `;
         
-        if (userTemplates.length === 0) {
-            alert('No templates found in your account. Please create templates in-game first.');
-            return;
-        }
+        Dialog.show('CoordinatedAttackPlanner', loadingContent);
+        
+        // Fetch templates (this may be async)
+        setTimeout(() => {
+            const userTemplates = window.CAP.State.getUserTemplates();
+            const attacksNeedingTemplates = window.CAP.State.getAttacksNeedingTemplates(planData);
+            
+            if (userTemplates.length === 0) {
+                const noTemplatesContent = `
+                    <div class="cap-content">
+                        <h2 class="cap-title">No Templates Found</h2>
+                        <div style="text-align: center; margin: 20px 0;">
+                            <p style="color: #d32f2f; font-weight: bold;">⚠️ No attack templates found in your account.</p>
+                            <p>You need to create attack templates in-game before importing plans.</p>
+                            <br>
+                            <p><strong>How to create templates:</strong></p>
+                            <ol style="text-align: left; display: inline-block;">
+                                <li>Go to Rally Point in any village</li>
+                                <li>Select your units for an attack</li>
+                                <li>Click "Save as template"</li>
+                                <li>Name your template and save</li>
+                                <li>Return here and try importing again</li>
+                            </ol>
+                        </div>
+                        <div class="cap-button-container">
+                            <button class="cap-button" id="cap-template-retry">Try Again</button>
+                            <button class="cap-button" id="cap-template-back">Back to Main</button>
+                        </div>
+                    </div>
+                `;
+                
+                Dialog.show('CoordinatedAttackPlanner', noTemplatesContent);
+                
+                document.getElementById('cap-template-retry').onclick = () => showTemplateAssignmentScreen(planData);
+                document.getElementById('cap-template-back').onclick = showInitialScreen;
+                return;
+            }
+            
+            // Now show the actual template assignment interface
+            showTemplateAssignmentInterface(planData, userTemplates);
+        }, 500); // Small delay to show loading state
+    };
+    
+    // Show the actual template assignment interface
+    const showTemplateAssignmentInterface = (planData, userTemplates) => {
         
         const content = `
-            <div class="cap-template-assignment" style="padding: 20px;">
-                <h2>Template Assignment</h2>
-                <p><strong>Plan:</strong> ${planData.planName || 'Untitled Plan'}</p>
-                ${planData.description ? `<p><strong>Description:</strong> ${planData.description}</p>` : ''}
-                <p>Please select a template for each attack that needs one:</p>
+            <div class="cap-content">
+                <h2 class="cap-title">Template Assignment</h2>
                 
-                <div style="margin: 20px 0;">
-                    <table class="vis" style="width: 100%;">
+                <div style="margin-bottom: 15px; text-align: center;">
+                    <p><strong>Plan:</strong> ${planData.planName || 'Untitled Plan'}</p>
+                    ${planData.description ? `<p><strong>Description:</strong> ${planData.description}</p>` : ''}
+                </div>
+                
+                <div style="margin-bottom: 15px; padding: 10px; background: rgba(255,215,0,0.1); border: 1px solid #DAA520; border-radius: 4px;">
+                    <strong>Template Assignment:</strong><br>
+                    • Select attack templates for each attack that needs one<br>
+                    • Attacks that already have templates or slowest units assigned are marked as ready<br>
+                    • All attacks must be ready before the plan can be finalized
+                </div>
+                
+                <div style="margin: 20px 0; max-height: 400px; overflow-y: auto;">
+                    <table class="vis" style="width: 100%; font-size: 12px;">
                         <thead>
                             <tr>
-                                <th style="text-align: center;">#</th>
-                                <th>From</th>
-                                <th>To</th>
-                                <th>Landing Time</th>
-                                <th>Current Status</th>
-                                <th>Template</th>
+                                <th style="text-align: center; width: 40px;">#</th>
+                                <th style="width: 120px;">From</th>
+                                <th style="width: 120px;">To</th>
+                                <th style="width: 140px;">Landing Time</th>
+                                <th style="width: 120px;">Current Status</th>
+                                <th style="width: 150px;">Template Assignment</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -2052,11 +2155,11 @@ window.CAP.UI = (function() {
                                         <td>${attack.attackingVillage}</td>
                                         <td>${attack.targetVillage}</td>
                                         <td>${formatDateTime(attack.arrivalTime)}</td>
-                                        <td style="color: ${statusColor}; font-weight: bold;">${statusText}</td>
+                                        <td style="color: ${statusColor}; font-weight: bold; font-size: 11px;">${statusText}</td>
                                         <td>
                                             ${isReady ? 
-                                                '<span style="color: green;">✓ Ready</span>' :
-                                                `<select id="template-${index}" class="cap-template-select" style="width: 150px;">
+                                                '<span style="color: green; font-weight: bold;">✓ Ready</span>' :
+                                                `<select id="template-${index}" class="cap-template-select" style="width: 140px; font-size: 11px;">
                                                     <option value="">Select Template...</option>
                                                     ${userTemplates.map(template => 
                                                         `<option value="${template.name}">${template.name}</option>`
@@ -2071,19 +2174,22 @@ window.CAP.UI = (function() {
                     </table>
                 </div>
                 
-                <div class="cap-template-actions" style="margin-top: 20px;">
-                    <button class="cap-button" id="cap-finalize-plan" style="margin-right: 10px;">Finalize Plan</button>
+                <div class="cap-button-container">
+                    <button class="cap-button" id="cap-finalize-plan">Finalize Plan</button>
                     <button class="cap-button" id="cap-template-cancel">Cancel</button>
                 </div>
             </div>
         `;
         
-        // Show full screen content
-        showFullScreenContent(content);
+        // Show as a modal dialog
+        Dialog.show('CoordinatedAttackPlanner', content);
         
         // Bind events
         document.getElementById('cap-finalize-plan').onclick = () => handleFinalizePlan(planData);
-        document.getElementById('cap-template-cancel').onclick = showInitialScreen;
+        document.getElementById('cap-template-cancel').onclick = () => {
+            Dialog.close();
+            showInitialScreen();
+        };
     };
 
     // Handle plan finalization
@@ -2091,7 +2197,7 @@ window.CAP.UI = (function() {
         // Collect template assignments for attacks that need them
         const templateAssignments = [];
         const attacksNeedingTemplates = window.CAP.State.getAttacksNeedingTemplates(planData);
-        let needsTemplateIndex = 0;
+        let missingTemplates = [];
         
         for (let i = 0; i < planData.attacks.length; i++) {
             const attack = planData.attacks[i];
@@ -2105,12 +2211,23 @@ window.CAP.UI = (function() {
                 const selectedTemplate = templateSelect ? templateSelect.value : '';
                 
                 if (!selectedTemplate) {
-                    alert(`Please select a template for attack ${i + 1}.`);
-                    return;
+                    missingTemplates.push(i + 1);
+                    templateAssignments.push('');
+                } else {
+                    templateAssignments.push(selectedTemplate);
                 }
-                
-                templateAssignments.push(selectedTemplate);
             }
+        }
+        
+        // Check if any templates are missing
+        if (missingTemplates.length > 0) {
+            const attackText = missingTemplates.length === 1 ? 'attack' : 'attacks';
+            const attackList = missingTemplates.length <= 3 ? 
+                missingTemplates.join(', ') : 
+                `${missingTemplates.slice(0, 3).join(', ')} and ${missingTemplates.length - 3} more`;
+            
+            alert(`Please select templates for ${attackText} ${attackList} before finalizing the plan.`);
+            return;
         }
         
         // Finalize the plan
@@ -2149,9 +2266,9 @@ window.CAP.UI = (function() {
                 <textarea id="cap-finalized-export" rows="8" readonly 
                     style="width: 100%; font-family: monospace; font-size: 12px; margin: 10px 0; padding: 8px; border: 1px solid #7D510F; border-radius: 4px;">${exportResult.base64}</textarea>
                 
-                <div class="cap-button-container" style="text-align: center;">
-                    <button class="cap-button" id="cap-copy-finalized" style="margin-right: 10px;">Copy to Clipboard</button>
-                    <button class="cap-button" id="cap-execute-now" style="margin-right: 10px;">Execute Now</button>
+                <div class="cap-button-container">
+                    <button class="cap-button" id="cap-copy-finalized">Copy to Clipboard</button>
+                    <button class="cap-button" id="cap-execute-now">Execute Now</button>
                     <button class="cap-button" id="cap-finalized-close">Close</button>
                 </div>
             </div>
