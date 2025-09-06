@@ -1080,38 +1080,8 @@ window.CAP.UI = (function() {
             const userTemplates = window.CAP.State.getUserTemplates();
             const attacksNeedingTemplates = window.CAP.State.getAttacksNeedingTemplates(planData);
             
-            if (userTemplates.length === 0) {
-                const noTemplatesContent = `
-                    <div class="cap-content">
-                        <h2 class="cap-title">No Templates Found</h2>
-                        <div style="text-align: center; margin: 20px 0;">
-                            <p style="color: #d32f2f; font-weight: bold;">⚠️ No attack templates found in your account.</p>
-                            <p>You need to create attack templates in-game before importing plans.</p>
-                            <br>
-                            <p><strong>How to create templates:</strong></p>
-                            <ol style="text-align: left; display: inline-block;">
-                                <li>Go to Rally Point in any village</li>
-                                <li>Select your units for an attack</li>
-                                <li>Click "Save as template"</li>
-                                <li>Name your template and save</li>
-                                <li>Return here and try importing again</li>
-                            </ol>
-                        </div>
-                        <div class="cap-button-container">
-                            <button class="cap-button" id="cap-template-retry">Try Again</button>
-                            <button class="cap-button" id="cap-template-back">Back to Main</button>
-                        </div>
-                    </div>
-                `;
-                
-                Dialog.show('CoordinatedAttackPlanner', noTemplatesContent);
-                
-                document.getElementById('cap-template-retry').onclick = () => showTemplateAssignmentScreen(planData);
-                document.getElementById('cap-template-back').onclick = showInitialScreen;
-                return;
-            }
-            
-            // Now show the actual template assignment interface
+            // Always show the template assignment interface, even if no templates are found
+            // Users can still assign slowest units manually
             showTemplateAssignmentInterface(planData, userTemplates);
         }, 500); // Small delay to show loading state
     };
@@ -1129,10 +1099,14 @@ window.CAP.UI = (function() {
                 </div>
                 
                 <div style="margin-bottom: 15px; padding: 10px; background: rgba(255,215,0,0.1); border: 1px solid #DAA520; border-radius: 4px;">
-                    <strong>Template Assignment:</strong><br>
-                    • Select attack templates for each attack that needs one<br>
-                    • Attacks that already have templates or slowest units assigned are marked as ready<br>
-                    • All attacks must be ready before the plan can be finalized
+                    <strong>Attack Configuration:</strong><br>
+                    • For each attack, choose either a <strong>Template</strong> OR a <strong>Slowest Unit</strong><br>
+                    • Templates will use saved unit configurations from your account<br>
+                    • Slowest Unit will calculate send times based on the specified unit type<br>
+                    ${userTemplates.length === 0 ? 
+                        '• <strong style="color: #d32f2f;">No templates found - use Slowest Unit option or create templates in Rally Point first</strong><br>' : ''
+                    }
+                    • All attacks must be configured before the plan can be finalized
                 </div>
                 
                 <div style="margin: 20px 0; max-height: 400px; overflow-y: auto;">
@@ -1144,7 +1118,8 @@ window.CAP.UI = (function() {
                                 <th style="width: 120px;">To</th>
                                 <th style="width: 140px;">Landing Time</th>
                                 <th style="width: 120px;">Current Status</th>
-                                <th style="width: 150px;">Template Assignment</th>
+                                <th style="width: 200px;">Template Selection</th>
+                                <th style="width: 150px;">Slowest Unit</th>
                             </tr>
                         </thead>
                         <tbody>
@@ -1153,16 +1128,20 @@ window.CAP.UI = (function() {
                                 const hasTemplate = window.CAP.State.hasTemplateAssigned(attack);
                                 const hasUnit = window.CAP.State.hasSlowestUnitAssigned(attack);
                                 
-                                let statusText = 'Needs Template';
+                                let statusText = 'Needs Configuration';
                                 let statusColor = 'red';
                                 
                                 if (hasTemplate) {
                                     statusText = `Template: ${attack.template}`;
                                     statusColor = 'green';
                                 } else if (hasUnit) {
-                                    statusText = `Manual: ${attack.slowestUnit}`;
+                                    statusText = `Unit: ${attack.slowestUnit}`;
                                     statusColor = 'blue';
                                 }
+                                
+                                // Determine current selection for UI state
+                                const currentTemplate = hasTemplate ? attack.template : '';
+                                const currentUnit = hasUnit ? attack.slowestUnit : '';
                                 
                                 return `
                                     <tr>
@@ -1172,15 +1151,41 @@ window.CAP.UI = (function() {
                                         <td>${formatDateTime(attack.arrivalTime)}</td>
                                         <td style="color: ${statusColor}; font-weight: bold; font-size: 11px;">${statusText}</td>
                                         <td>
-                                            ${isReady ? 
-                                                '<span style="color: green; font-weight: bold;">✓ Ready</span>' :
-                                                `<select id="template-${index}" class="cap-template-select" style="width: 140px; font-size: 11px;">
-                                                    <option value="">Select Template...</option>
-                                                    ${userTemplates.map(template => 
-                                                        `<option value="${template.name}">${template.name}</option>`
-                                                    ).join('')}
-                                                </select>`
+                                            <select id="template-${index}" class="cap-template-select" 
+                                                    style="width: 180px; font-size: 11px; ${userTemplates.length === 0 || hasUnit ? 'opacity: 0.5;' : ''}" 
+                                                    onchange="handleTemplateUnitSelection(${index}, 'template', this.value)"
+                                                    ${hasUnit || userTemplates.length === 0 ? 'disabled' : ''}>
+                                                <option value="">Select Template...</option>
+                                                ${userTemplates.length > 0 ? 
+                                                    userTemplates.map(template => 
+                                                        `<option value="${template.name}" ${currentTemplate === template.name ? 'selected' : ''}>${template.name}</option>`
+                                                    ).join('') :
+                                                    '<option value="" disabled>No templates found</option>'
+                                                }
+                                            </select>
+                                            ${userTemplates.length === 0 ? 
+                                                '<br><small style="color: #666; font-size: 10px;">Create templates in Rally Point</small>' : ''
                                             }
+                                        </td>
+                                        <td>
+                                            <select id="slowest-unit-${index}" class="cap-unit-select" 
+                                                    style="width: 130px; font-size: 11px; ${hasTemplate ? 'opacity: 0.5;' : ''}"
+                                                    onchange="handleTemplateUnitSelection(${index}, 'unit', this.value)"
+                                                    ${hasTemplate ? 'disabled' : ''}>
+                                                <option value="">Select Unit...</option>
+                                                <option value="spear" ${currentUnit === 'spear' ? 'selected' : ''}>Spear fighter</option>
+                                                <option value="sword" ${currentUnit === 'sword' ? 'selected' : ''}>Swordsman</option>
+                                                <option value="axe" ${currentUnit === 'axe' ? 'selected' : ''}>Axeman</option>
+                                                <option value="archer" ${currentUnit === 'archer' ? 'selected' : ''}>Archer</option>
+                                                <option value="spy" ${currentUnit === 'spy' ? 'selected' : ''}>Scout</option>
+                                                <option value="light" ${currentUnit === 'light' ? 'selected' : ''}>Light cavalry</option>
+                                                <option value="marcher" ${currentUnit === 'marcher' ? 'selected' : ''}>Mounted archer</option>
+                                                <option value="heavy" ${currentUnit === 'heavy' ? 'selected' : ''}>Heavy cavalry</option>
+                                                <option value="ram" ${currentUnit === 'ram' ? 'selected' : ''}>Ram</option>
+                                                <option value="catapult" ${currentUnit === 'catapult' ? 'selected' : ''}>Catapult</option>
+                                                <option value="knight" ${currentUnit === 'knight' ? 'selected' : ''}>Paladin</option>
+                                                <option value="snob" ${currentUnit === 'snob' ? 'selected' : ''}>Nobleman</option>
+                                            </select>
                                         </td>
                                     </tr>
                                 `;
@@ -1199,6 +1204,40 @@ window.CAP.UI = (function() {
         // Show as a modal dialog
         Dialog.show('CoordinatedAttackPlanner', content);
         
+        // Add the selection handler function to global scope
+        window.handleTemplateUnitSelection = function(attackIndex, type, value) {
+            const templateSelect = document.getElementById(`template-${attackIndex}`);
+            const unitSelect = document.getElementById(`slowest-unit-${attackIndex}`);
+            
+            if (type === 'template') {
+                if (value) {
+                    // Template selected, disable unit select and clear its value
+                    unitSelect.disabled = true;
+                    unitSelect.value = '';
+                    unitSelect.style.opacity = '0.5';
+                } else {
+                    // Template cleared, enable unit select (unless no templates available)
+                    unitSelect.disabled = false;
+                    unitSelect.style.opacity = '1';
+                }
+            } else if (type === 'unit') {
+                if (value) {
+                    // Unit selected, disable template select and clear its value (if templates are available)
+                    if (templateSelect.options.length > 1 && templateSelect.options[1].value !== '') {
+                        templateSelect.disabled = true;
+                        templateSelect.value = '';
+                        templateSelect.style.opacity = '0.5';
+                    }
+                } else {
+                    // Unit cleared, enable template select (if templates are available)
+                    if (templateSelect.options.length > 1 && templateSelect.options[1].value !== '') {
+                        templateSelect.disabled = false;
+                        templateSelect.style.opacity = '1';
+                    }
+                }
+            }
+        };
+        
         // Bind events
         document.getElementById('cap-finalize-plan').onclick = () => handleFinalizePlan(planData);
         document.getElementById('cap-template-cancel').onclick = () => {
@@ -1209,10 +1248,10 @@ window.CAP.UI = (function() {
 
     // Handle plan finalization
     const handleFinalizePlan = (planData) => {
-        // Collect template assignments for attacks that need them
+        // Collect template and unit assignments for attacks that need them
         const templateAssignments = [];
-        const attacksNeedingTemplates = window.CAP.State.getAttacksNeedingTemplates(planData);
-        let missingTemplates = [];
+        const unitAssignments = [];
+        let missingConfigurations = [];
         
         for (let i = 0; i < planData.attacks.length; i++) {
             const attack = planData.attacks[i];
@@ -1220,33 +1259,42 @@ window.CAP.UI = (function() {
             if (window.CAP.State.isAttackReady(attack)) {
                 // Attack already ready, no assignment needed
                 templateAssignments.push(null);
+                unitAssignments.push(null);
             } else {
-                // Get template assignment for this attack
+                // Get template and unit selections
                 const templateSelect = document.getElementById(`template-${i}`);
-                const selectedTemplate = templateSelect ? templateSelect.value : '';
+                const unitSelect = document.getElementById(`slowest-unit-${i}`);
                 
-                if (!selectedTemplate) {
-                    missingTemplates.push(i + 1);
+                const selectedTemplate = templateSelect ? templateSelect.value : '';
+                const selectedUnit = unitSelect ? unitSelect.value : '';
+                
+                if (!selectedTemplate && !selectedUnit) {
+                    missingConfigurations.push(i + 1);
                     templateAssignments.push('');
-                } else {
+                    unitAssignments.push('');
+                } else if (selectedTemplate) {
                     templateAssignments.push(selectedTemplate);
+                    unitAssignments.push('');
+                } else if (selectedUnit) {
+                    templateAssignments.push('');
+                    unitAssignments.push(selectedUnit);
                 }
             }
         }
         
-        // Check if any templates are missing
-        if (missingTemplates.length > 0) {
-            const attackText = missingTemplates.length === 1 ? 'attack' : 'attacks';
-            const attackList = missingTemplates.length <= 3 ? 
-                missingTemplates.join(', ') : 
-                `${missingTemplates.slice(0, 3).join(', ')} and ${missingTemplates.length - 3} more`;
+        // Check if any configurations are missing
+        if (missingConfigurations.length > 0) {
+            const attackText = missingConfigurations.length === 1 ? 'attack' : 'attacks';
+            const attackList = missingConfigurations.length <= 3 ? 
+                missingConfigurations.join(', ') : 
+                `${missingConfigurations.slice(0, 3).join(', ')} and ${missingConfigurations.length - 3} more`;
             
-            alert(`Please select templates for ${attackText} ${attackList} before finalizing the plan.`);
+            alert(`Please configure ${attackText} ${attackList} with either a template or slowest unit before finalizing the plan.`);
             return;
         }
         
-        // Finalize the plan
-        const finalizeResult = window.CAP.State.finalizePlan(planData, templateAssignments);
+        // Finalize the plan with both template and unit assignments
+        const finalizeResult = window.CAP.State.finalizePlan(planData, templateAssignments, unitAssignments);
         
         if (!finalizeResult.isValid) {
             alert('Failed to finalize plan: ' + finalizeResult.error);

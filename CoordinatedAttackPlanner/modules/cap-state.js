@@ -430,8 +430,8 @@ window.CAP.State = (function() {
         }
     };
 
-    // Finalize plan with template assignments
-    const finalizePlan = (planData, templateAssignments) => {
+    // Finalize plan with template and unit assignments
+    const finalizePlan = (planData, templateAssignments, unitAssignments = null) => {
         try {
             const userTemplates = getUserTemplates();
             
@@ -448,23 +448,34 @@ window.CAP.State = (function() {
                     return { ...attack, sendTime };
                 }
                 
-                // Attack needs finalization from template assignments
+                // Attack needs finalization from assignments
                 const templateAssignment = templateAssignments[index];
-                if (!templateAssignment) {
-                    throw new Error(`No template assignment for attack ${index + 1}`);
+                const unitAssignment = unitAssignments ? unitAssignments[index] : null;
+                
+                if (!templateAssignment && !unitAssignment) {
+                    throw new Error(`No template or unit assignment for attack ${index + 1}`);
                 }
                 
-                const template = userTemplates.find(t => t.name === templateAssignment);
-                if (!template) {
-                    throw new Error(`Template '${templateAssignment}' not found`);
+                let slowestUnit, template;
+                
+                if (templateAssignment) {
+                    // Use template assignment
+                    template = userTemplates.find(t => t.name === templateAssignment);
+                    if (!template) {
+                        throw new Error(`Template '${templateAssignment}' not found`);
+                    }
+                    slowestUnit = calculateSlowestUnit(template);
+                } else if (unitAssignment) {
+                    // Use unit assignment
+                    slowestUnit = unitAssignment;
+                    template = null;
                 }
                 
-                const slowestUnit = calculateSlowestUnit(template);
                 const sendTime = calculateSendTime(attack.arrivalTime, attack.attackingVillage, attack.targetVillage, slowestUnit);
                 
                 return {
                     ...attack,
-                    template: template.name,
+                    template: template ? template.name : attack.template,
                     slowestUnit: slowestUnit,
                     sendTime: sendTime
                 };
