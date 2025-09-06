@@ -112,6 +112,164 @@
     // Make the calculateSendTime function globally available
     window.CAP.calculateSendTime = calculateSendTime;
 
+    // Utility function to calculate travel time in minutes
+    function calculateTravelTime(attackingCoords, targetCoords, slowestUnit) {
+        try {
+            const unitSpeeds = {
+                spear: 18, sword: 22, axe: 18, archer: 18, spy: 9,
+                light: 10, marcher: 10, heavy: 11, ram: 30, catapult: 30,
+                knight: 10, snob: 35
+            };
+            
+            // Calculate distance between villages
+            const [x1, y1] = attackingCoords.split('|').map(Number);
+            const [x2, y2] = targetCoords.split('|').map(Number);
+            const distance = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+            
+            // Get unit speed and world settings
+            const unitSpeed = unitSpeeds[slowestUnit] || 18;
+            const worldSpeed = window.game_data ? (window.game_data.speed || 1) : 1;
+            const unitSpeed_config = window.game_data ? (window.game_data.config?.speed || 1) : 1;
+            
+            // Calculate travel time in minutes
+            const travelTimeMinutes = distance * unitSpeed / (worldSpeed * unitSpeed_config);
+            
+            return travelTimeMinutes;
+        } catch (error) {
+            console.warn('Error calculating travel time:', error);
+            return 0;
+        }
+    }
+
+    // Utility function to format travel time for display
+    function formatTravelTime(minutes) {
+        if (minutes === 0) return '--';
+        
+        const hours = Math.floor(minutes / 60);
+        const mins = Math.floor(minutes % 60);
+        const secs = Math.floor((minutes % 1) * 60);
+        
+        if (hours > 0) {
+            return `${hours}h ${mins}m`;
+        } else if (mins > 0) {
+            return `${mins}m ${secs}s`;
+        } else {
+            return `${secs}s`;
+        }
+    }
+
+    // Utility function to get village display name with link
+    function getVillageDisplayName(coords, villageName = null, playerName = null) {
+        const displayName = villageName || coords;
+        // Extract x and y coordinates for the info_village URL
+        const [x, y] = coords.split('|');
+        const linkUrl = `/game.php?screen=info_village&x=${x}&y=${y}`;
+        
+        if (playerName) {
+            return `<a href="${linkUrl}" target="_blank" title="View village info">${displayName}</a> <span style="color: #666;">(${playerName})</span>`;
+        } else {
+            return `<a href="${linkUrl}" target="_blank" title="View village info">${displayName}</a>`;
+        }
+    }
+
+    // Helper function to get full village information with proper ID-based link
+    async function getVillageFullInfo(coords) {
+        try {
+            const currentVillageId = game_data.village.id;
+            const encodedCoords = encodeURIComponent(coords);
+            const apiUrl = `/game.php?village=${currentVillageId}&screen=api&ajax=target_selection&input=${encodedCoords}&type=coord&request_id=${Date.now()}&limit=8&offset=0`;
+            
+            const response = await $.get(apiUrl);
+            let data;
+            if (typeof response === 'string') {
+                data = JSON.parse(response);
+            } else {
+                data = response;
+            }
+            
+            if (data && data.villages && Array.isArray(data.villages)) {
+                const village = data.villages.find(v => 
+                    v.x && v.y && `${v.x}|${v.y}` === coords
+                );
+                
+                if (village && village.id) {
+                    // Format the full name like "002 Aegis (307|441)"
+                    const fullName = `${village.name} (${coords})`;
+                    const linkUrl = `/game.php?screen=info_village&id=${village.id}#${coords.replace('|', ';')}`;
+                    
+                    return {
+                        id: village.id,
+                        name: village.name,
+                        fullName: fullName,
+                        coords: coords,
+                        playerName: village.player_name || null,
+                        linkUrl: linkUrl,
+                        found: true
+                    };
+                }
+            }
+            
+            // Fallback if village not found
+            return {
+                id: null,
+                name: null,
+                fullName: coords,
+                coords: coords,
+                playerName: null,
+                linkUrl: `/game.php?screen=info_village&x=${coords.split('|')[0]}&y=${coords.split('|')[1]}`,
+                found: false
+            };
+        } catch (error) {
+            console.warn('Error looking up village info:', error);
+            return {
+                id: null,
+                name: null,
+                fullName: coords,
+                coords: coords,
+                playerName: null,
+                linkUrl: `/game.php?screen=info_village&x=${coords.split('|')[0]}&y=${coords.split('|')[1]}`,
+                found: false
+            };
+        }
+    }
+
+    // Utility function to create village display with proper link and full name
+    async function getVillageDisplayNameWithLookup(coords, cachedVillageName = null, cachedPlayerName = null) {
+        // If we already have the village name from cache, use it to create the full display
+        if (cachedVillageName) {
+            const fullName = `${cachedVillageName} (${coords})`;
+            // Try to get the ID for a proper link, but don't wait for it
+            getVillageFullInfo(coords).then(info => {
+                if (info.found) {
+                    // Update the link in the DOM if possible
+                    const linkElement = document.querySelector(`a[data-coords="${coords}"]`);
+                    if (linkElement) {
+                        linkElement.href = info.linkUrl;
+                    }
+                }
+            }).catch(() => {
+                // Ignore errors for async updates
+            });
+            
+            const fallbackUrl = `/game.php?screen=info_village&x=${coords.split('|')[0]}&y=${coords.split('|')[1]}`;
+            const playerDisplay = cachedPlayerName ? ` <span style="color: #666;">(${cachedPlayerName})</span>` : '';
+            return `<a href="${fallbackUrl}" target="_blank" title="View village info" data-coords="${coords}">${fullName}</a>${playerDisplay}`;
+        }
+        
+        // Otherwise, do a full lookup
+        const villageInfo = await getVillageFullInfo(coords);
+        const playerDisplay = villageInfo.playerName ? ` <span style="color: #666;">(${villageInfo.playerName})</span>` : '';
+        return `<a href="${villageInfo.linkUrl}" target="_blank" title="View village info" data-coords="${coords}">${villageInfo.fullName}</a>${playerDisplay}`;
+    }
+
+    // Make utility functions globally available
+    window.CAP.calculateTravelTime = calculateTravelTime;
+    window.CAP.formatTravelTime = formatTravelTime;
+    window.CAP.getVillageDisplayName = getVillageDisplayName;
+    window.CAP.getVillageFullInfo = getVillageFullInfo;
+    window.CAP.getVillageDisplayNameWithLookup = getVillageDisplayNameWithLookup;
+    window.CAP.getVillageDisplayNameWithLookup = getVillageDisplayNameWithLookup;
+
     // Utility to create modal
     function createModal() {
         // Remove any existing modal

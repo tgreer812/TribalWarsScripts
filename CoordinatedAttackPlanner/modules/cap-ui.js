@@ -1363,13 +1363,35 @@ window.CAP.UI = (function() {
     const showExecutionScreen = (planData) => {
         // Sort attacks by send time (launch time)
         const sortedAttacks = [...planData.attacks].sort((a, b) => {
-            const aSendTime = window.CAP.State.isAttackReady(a) ? 
-                window.CAP.calculateSendTime(a.arrivalTime, a.attackingVillage, a.targetVillage, a.slowestUnit || a.template) : 
-                new Date(0);
-            const bSendTime = window.CAP.State.isAttackReady(b) ? 
-                window.CAP.calculateSendTime(b.arrivalTime, b.attackingVillage, b.targetVillage, b.slowestUnit || b.template) : 
-                new Date(0);
-            return new Date(aSendTime) - new Date(bSendTime);
+            const aReady = window.CAP.State.isAttackReady(a);
+            const bReady = window.CAP.State.isAttackReady(b);
+            
+            if (!aReady && !bReady) return 0;
+            if (!aReady) return 1;
+            if (!bReady) return -1;
+            
+            try {
+                // Extract coordinates for calculations
+                const aAttackingCoords = typeof a.attackingVillage === 'object' ? 
+                    a.attackingVillage.coords : a.attackingVillage;
+                const aTargetCoords = typeof a.targetVillage === 'object' ? 
+                    a.targetVillage.coords : a.targetVillage;
+                const bAttackingCoords = typeof b.attackingVillage === 'object' ? 
+                    b.attackingVillage.coords : b.attackingVillage;
+                const bTargetCoords = typeof b.targetVillage === 'object' ? 
+                    b.targetVillage.coords : b.targetVillage;
+                
+                const aSendTime = window.CAP.calculateSendTime(
+                    a.arrivalTime, aAttackingCoords, aTargetCoords, a.slowestUnit || a.template
+                );
+                const bSendTime = window.CAP.calculateSendTime(
+                    b.arrivalTime, bAttackingCoords, bTargetCoords, b.slowestUnit || b.template
+                );
+                return new Date(aSendTime) - new Date(bSendTime);
+            } catch (error) {
+                console.warn('Error sorting attacks by send time:', error);
+                return 0;
+            }
         });
         
         const content = `
@@ -1391,13 +1413,15 @@ window.CAP.UI = (function() {
                     <table class="vis" style="width: 100%;">
                         <thead>
                             <tr>
-                                <th>Launch Time</th>
-                                <th>Countdown</th>
-                                <th>From</th>
-                                <th>To</th>
-                                <th>Template</th>
-                                <th>Notes</th>
-                                <th>Action</th>
+                                <th style="width: 110px;">Launch Time</th>
+                                <th style="width: 80px;">Countdown</th>
+                                <th style="width: 180px;">From</th>
+                                <th style="width: 180px;">To</th>
+                                <th style="width: 80px;">Travel Time</th>
+                                <th style="width: 140px;">Arrival Time</th>
+                                <th style="width: 120px;">Template</th>
+                                <th style="width: 150px;">Notes</th>
+                                <th style="width: 100px;">Action</th>
                             </tr>
                         </thead>
                         <tbody id="cap-execution-tbody">
@@ -1416,30 +1440,78 @@ window.CAP.UI = (function() {
                                 // Calculate send time dynamically if attack is ready
                                 let sendTimeDisplay = 'Not calculated';
                                 let sendTimeTarget = '';
+                                let travelTimeDisplay = '--';
+                                
                                 if (isReady) {
                                     try {
+                                        // Extract coordinates for calculations
+                                        const attackingCoords = typeof attack.attackingVillage === 'object' ? 
+                                            attack.attackingVillage.coords : attack.attackingVillage;
+                                        const targetCoords = typeof attack.targetVillage === 'object' ? 
+                                            attack.targetVillage.coords : attack.targetVillage;
+                                        
                                         const sendTime = window.CAP.calculateSendTime(
                                             attack.arrivalTime, 
-                                            attack.attackingVillage, 
-                                            attack.targetVillage, 
+                                            attackingCoords, 
+                                            targetCoords, 
                                             attack.slowestUnit || attack.template
                                         );
                                         sendTimeDisplay = formatDateTime(sendTime);
                                         sendTimeTarget = sendTime;
+                                        
+                                        // Calculate travel time
+                                        const travelTimeMinutes = window.CAP.calculateTravelTime(
+                                            attackingCoords, 
+                                            targetCoords, 
+                                            attack.slowestUnit || attack.template
+                                        );
+                                        travelTimeDisplay = window.CAP.formatTravelTime(travelTimeMinutes);
                                     } catch (error) {
                                         sendTimeDisplay = 'Calculation Error';
                                         console.error('Error calculating send time for display:', error);
                                     }
                                 }
                                 
+                                // Format village names with links - handle both full objects and coordinate strings
+                                // We'll use placeholders initially and update them asynchronously
+                                let fromVillageDisplay, toVillageDisplay;
+                                
+                                if (typeof attack.attackingVillage === 'object') {
+                                    // Full village object with name
+                                    const coords = attack.attackingVillage.coords;
+                                    const name = attack.attackingVillage.name;
+                                    const fullName = `${name} (${coords})`;
+                                    fromVillageDisplay = `<a href="/game.php?screen=info_village&x=${coords.split('|')[0]}&y=${coords.split('|')[1]}" target="_blank" title="View village info" data-coords="${coords}" data-attack-id="${attack.id}" data-type="from">${fullName}</a>`;
+                                } else {
+                                    // Just coordinates - will be updated async
+                                    const coords = attack.attackingVillage;
+                                    fromVillageDisplay = `<a href="/game.php?screen=info_village&x=${coords.split('|')[0]}&y=${coords.split('|')[1]}" target="_blank" title="View village info" data-coords="${coords}" data-attack-id="${attack.id}" data-type="from">${coords}</a>`;
+                                }
+                                
+                                if (typeof attack.targetVillage === 'object') {
+                                    // Full village object with name and player
+                                    const coords = attack.targetVillage.coords;
+                                    const name = attack.targetVillage.name;
+                                    const player = attack.targetVillage.player;
+                                    const fullName = `${name} (${coords})`;
+                                    const playerDisplay = player ? ` <span style="color: #666;">(${player})</span>` : '';
+                                    toVillageDisplay = `<a href="/game.php?screen=info_village&x=${coords.split('|')[0]}&y=${coords.split('|')[1]}" target="_blank" title="View village info" data-coords="${coords}" data-attack-id="${attack.id}" data-type="to">${fullName}</a>${playerDisplay}`;
+                                } else {
+                                    // Just coordinates - will be updated async
+                                    const coords = attack.targetVillage;
+                                    toVillageDisplay = `<a href="/game.php?screen=info_village&x=${coords.split('|')[0]}&y=${coords.split('|')[1]}" target="_blank" title="View village info" data-coords="${coords}" data-attack-id="${attack.id}" data-type="to">${coords}</a>`;
+                                }
+                                
                                 return `
                                     <tr data-attack-id="${attack.id}" class="cap-attack-row">
-                                        <td>${sendTimeDisplay}</td>
-                                        <td class="cap-countdown" data-target="${sendTimeTarget}" style="font-weight: bold; font-family: monospace;">--:--:--</td>
-                                        <td>${attack.attackingVillage}</td>
-                                        <td>${attack.targetVillage}</td>
-                                        <td>${templateDisplay}</td>
-                                        <td>${attack.notes || ''}</td>
+                                        <td style="font-size: 11px;">${sendTimeDisplay}</td>
+                                        <td class="cap-countdown" data-target="${sendTimeTarget}" style="font-weight: bold; font-family: monospace; font-size: 11px;">--:--:--</td>
+                                        <td style="font-size: 11px;">${fromVillageDisplay}</td>
+                                        <td style="font-size: 11px;">${toVillageDisplay}</td>
+                                        <td style="font-size: 11px; text-align: center;">${travelTimeDisplay}</td>
+                                        <td style="font-size: 11px;">${formatDateTime(attack.arrivalTime)}</td>
+                                        <td style="font-size: 11px;">${templateDisplay}</td>
+                                        <td style="font-size: 11px;">${attack.notes || ''}</td>
                                         <td>
                                             ${isReady && sendTimeTarget ? 
                                                 (hasTemplate ? 
@@ -1448,7 +1520,7 @@ window.CAP.UI = (function() {
                                                             data-from="${attack.attackingVillage}"
                                                             data-to="${attack.targetVillage}"
                                                             data-template="${attack.template || ''}"
-                                                            style="background-color: #4CAF50;">
+                                                            style="background-color: #4CAF50; font-size: 10px; padding: 3px 6px;">
                                                         Launch
                                                     </button>` :
                                                     `<button class="cap-button cap-configure-btn" 
@@ -1456,11 +1528,11 @@ window.CAP.UI = (function() {
                                                             data-from="${attack.attackingVillage}"
                                                             data-to="${attack.targetVillage}"
                                                             data-template="${attack.template || ''}"
-                                                            style="background-color: #D2B48C;">
+                                                            style="background-color: #D2B48C; font-size: 10px; padding: 3px 6px;">
                                                         Configure
                                                     </button>`
                                                 ) :
-                                                `<button class="cap-button" disabled style="background-color: #ccc;">Not Ready</button>`
+                                                `<button class="cap-button" disabled style="background-color: #ccc; font-size: 10px; padding: 3px 6px;">Not Ready</button>`
                                             }
                                         </td>
                                     </tr>
@@ -1497,6 +1569,63 @@ window.CAP.UI = (function() {
         
         // Start countdown timers
         startCountdowns();
+        
+        // Async village link updates after the countdown timers start
+        updateVillageLinksAsync();
+    };
+
+    // Update village links asynchronously with proper IDs and full names
+    const updateVillageLinksAsync = async () => {
+        // Find all village links that need updating
+        const villageLinks = document.querySelectorAll('a[data-coords][data-attack-id]');
+        
+        // Process links in small batches to avoid overwhelming the API
+        const batchSize = 5;
+        const delay = 200; // 200ms delay between batches
+        
+        for (let i = 0; i < villageLinks.length; i += batchSize) {
+            const batch = Array.from(villageLinks).slice(i, i + batchSize);
+            
+            // Process this batch in parallel
+            await Promise.all(batch.map(async (link) => {
+                try {
+                    const coords = link.getAttribute('data-coords');
+                    const attackId = link.getAttribute('data-attack-id');
+                    const type = link.getAttribute('data-type'); // 'from' or 'to'
+                    
+                    // Skip if already has a proper name (not just coordinates)
+                    if (link.textContent !== coords) {
+                        return;
+                    }
+                    
+                    // Get full village info
+                    const villageInfo = await window.CAP.getVillageFullInfo(coords);
+                    
+                    if (villageInfo.found) {
+                        // Update the link with proper URL and name
+                        link.href = villageInfo.linkUrl;
+                        link.textContent = villageInfo.fullName;
+                        link.title = `View village info - ${villageInfo.fullName}`;
+                        
+                        // If this is a target village and we have player info, add player name
+                        if (type === 'to' && villageInfo.playerName) {
+                            const playerSpan = document.createElement('span');
+                            playerSpan.style.color = '#666';
+                            playerSpan.textContent = ` (${villageInfo.playerName})`;
+                            link.parentNode.insertBefore(playerSpan, link.nextSibling);
+                        }
+                    }
+                } catch (error) {
+                    // Silently ignore errors for individual villages
+                    console.warn('Error updating village link:', error);
+                }
+            }));
+            
+            // Add delay between batches if there are more to process
+            if (i + batchSize < villageLinks.length) {
+                await new Promise(resolve => setTimeout(resolve, delay));
+            }
+        }
     };
 
     // Handle launching an attack (with template)
