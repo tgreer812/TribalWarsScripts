@@ -1417,14 +1417,24 @@ window.CAP.UI = (function() {
                                         <td>${attack.notes || ''}</td>
                                         <td>
                                             ${isReady && attack.sendTime ? 
-                                                `<button class="cap-button cap-launch-btn" 
-                                                        data-attack-id="${attack.id}"
-                                                        data-from="${attack.attackingVillage}"
-                                                        data-to="${attack.targetVillage}"
-                                                        data-template="${attack.template || ''}"
-                                                        style="background-color: #4CAF50;">
-                                                    Launch
-                                                </button>` :
+                                                (hasTemplate ? 
+                                                    `<button class="cap-button cap-launch-btn" 
+                                                            data-attack-id="${attack.id}"
+                                                            data-from="${attack.attackingVillage}"
+                                                            data-to="${attack.targetVillage}"
+                                                            data-template="${attack.template || ''}"
+                                                            style="background-color: #4CAF50;">
+                                                        Launch
+                                                    </button>` :
+                                                    `<button class="cap-button cap-configure-btn" 
+                                                            data-attack-id="${attack.id}"
+                                                            data-from="${attack.attackingVillage}"
+                                                            data-to="${attack.targetVillage}"
+                                                            data-template="${attack.template || ''}"
+                                                            style="background-color: #D2B48C;">
+                                                        Configure
+                                                    </button>`
+                                                ) :
                                                 `<button class="cap-button" disabled style="background-color: #ccc;">Not Ready</button>`
                                             }
                                         </td>
@@ -1452,16 +1462,19 @@ window.CAP.UI = (function() {
         };
         document.getElementById('cap-execution-back').onclick = showInitialScreen;
         
-        // Bind launch buttons
+        // Bind launch and configure buttons
         document.querySelectorAll('.cap-launch-btn').forEach(button => {
             button.onclick = () => handleLaunchAttack(button);
+        });
+        document.querySelectorAll('.cap-configure-btn').forEach(button => {
+            button.onclick = () => handleConfigureAttack(button);
         });
         
         // Start countdown timers
         startCountdowns();
     };
 
-    // Handle launching an attack
+    // Handle launching an attack (with template)
     const handleLaunchAttack = (button) => {
         const attackId = button.getAttribute('data-attack-id');
         const fromCoords = button.getAttribute('data-from');
@@ -1489,6 +1502,32 @@ window.CAP.UI = (function() {
         if (row) {
             row.style.backgroundColor = '#f0f0f0';
         }
+    };
+
+    // Handle configuring an attack (manual/slowest unit)
+    const handleConfigureAttack = (button) => {
+        const attackId = button.getAttribute('data-attack-id');
+        const fromCoords = button.getAttribute('data-from');
+        const toCoords = button.getAttribute('data-to');
+        
+        // Construct the attack URL (no template)
+        const [x, y] = toCoords.split('|');
+        const attackUrl = `/game.php?screen=place&x=${x}&y=${y}`;
+        
+        // Open in new window/tab
+        window.open(attackUrl, '_blank');
+        
+        // Note: Don't disable the Configure button - user may need to use it multiple times
+        // Just provide visual feedback that it was clicked
+        const originalText = button.textContent;
+        button.textContent = 'Opened';
+        button.style.backgroundColor = '#B8860B'; // Darker tan
+        
+        // Reset the button after 2 seconds
+        setTimeout(() => {
+            button.textContent = originalText;
+            button.style.backgroundColor = '#D2B48C'; // Original tan
+        }, 2000);
     };
 
     // Start countdown timers
