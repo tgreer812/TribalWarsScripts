@@ -690,7 +690,7 @@
                 name: targetVillage.name,
                 player: targetVillage.player
             },
-            arrivalTime: new Date(landingTime.replace(' ', 'T') + '.000Z').toISOString(),
+            arrivalTime: new Date(landingTime.replace(' ', 'T')).toISOString(),
             notes: notes,
             template: '', // Empty initially, filled during plan execution
             slowestUnit: '' // Empty initially, filled during plan execution
@@ -701,7 +701,7 @@
 
     function checkDuplicateAttack(attackingVillageId, targetVillageCoords, landingTime) {
         const existingAttacks = window.CAP.State.getAttacks();
-        const arrivalTimeISO = new Date(landingTime.replace(' ', 'T') + '.000Z').toISOString();
+        const arrivalTimeISO = new Date(landingTime.replace(' ', 'T')).toISOString();
         return existingAttacks.find(attack => 
             attack.attackingVillage.id === attackingVillageId &&
             attack.targetVillage.coords === targetVillageCoords &&
