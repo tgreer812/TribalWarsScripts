@@ -1141,11 +1141,40 @@ window.CAP.UI = (function() {
                                 const currentTemplate = hasTemplate ? attack.template : '';
                                 const currentUnit = hasUnit ? attack.slowestUnit : '';
                                 
+                                // Format village names with links - handle both full objects and coordinate strings
+                                let fromVillageDisplay, toVillageDisplay;
+                                
+                                if (typeof attack.attackingVillage === 'object') {
+                                    // Full village object with name
+                                    const coords = attack.attackingVillage.coords;
+                                    const name = attack.attackingVillage.name;
+                                    const fullName = `${name} (${coords})`;
+                                    fromVillageDisplay = `<a href="/game.php?screen=info_village&x=${coords.split('|')[0]}&y=${coords.split('|')[1]}" target="_blank" title="View village info" data-coords="${coords}">${fullName}</a>`;
+                                } else {
+                                    // Just coordinates - will be updated async
+                                    const coords = attack.attackingVillage;
+                                    fromVillageDisplay = `<a href="/game.php?screen=info_village&x=${coords.split('|')[0]}&y=${coords.split('|')[1]}" target="_blank" title="View village info" data-coords="${coords}">${coords}</a>`;
+                                }
+                                
+                                if (typeof attack.targetVillage === 'object') {
+                                    // Full village object with name and player
+                                    const coords = attack.targetVillage.coords;
+                                    const name = attack.targetVillage.name;
+                                    const player = attack.targetVillage.player;
+                                    const fullName = `${name} (${coords})`;
+                                    const playerDisplay = player ? ` <span style="color: #666;">(${player})</span>` : '';
+                                    toVillageDisplay = `<a href="/game.php?screen=info_village&x=${coords.split('|')[0]}&y=${coords.split('|')[1]}" target="_blank" title="View village info" data-coords="${coords}">${fullName}</a>${playerDisplay}`;
+                                } else {
+                                    // Just coordinates - will be updated async
+                                    const coords = attack.targetVillage;
+                                    toVillageDisplay = `<a href="/game.php?screen=info_village&x=${coords.split('|')[0]}&y=${coords.split('|')[1]}" target="_blank" title="View village info" data-coords="${coords}">${coords}</a>`;
+                                }
+                                
                                 return `
                                     <tr>
                                         <td style="text-align: center;">${index + 1}</td>
-                                        <td>${attack.attackingVillage}</td>
-                                        <td>${attack.targetVillage}</td>
+                                        <td>${fromVillageDisplay}</td>
+                                        <td>${toVillageDisplay}</td>
                                         <td>${formatDateTime(attack.arrivalTime)}</td>
                                         <td style="color: ${statusColor}; font-weight: bold; font-size: 11px;">${statusText}</td>
                                         <td>
@@ -1201,6 +1230,11 @@ window.CAP.UI = (function() {
         
         // Show as a modal dialog
         Dialog.show('CoordinatedAttackPlanner', content);
+        
+        // Update village links asynchronously with proper names
+        setTimeout(() => {
+            updateVillageLinksAsync();
+        }, 100);
         
         // Add the selection handler function to global scope
         window.handleTemplateUnitSelection = function(attackIndex, type, value) {
@@ -1576,8 +1610,8 @@ window.CAP.UI = (function() {
 
     // Update village links asynchronously with proper IDs and full names
     const updateVillageLinksAsync = async () => {
-        // Find all village links that need updating
-        const villageLinks = document.querySelectorAll('a[data-coords][data-attack-id]');
+        // Find all village links that need updating (both with and without attack-id)
+        const villageLinks = document.querySelectorAll('a[data-coords]');
         
         // Process links in small batches to avoid overwhelming the API
         const batchSize = 5;
@@ -1608,7 +1642,9 @@ window.CAP.UI = (function() {
                         link.title = `View village info - ${villageInfo.fullName}`;
                         
                         // If this is a target village and we have player info, add player name
-                        if (type === 'to' && villageInfo.playerName) {
+                        // Check for either explicit type attribute or if this looks like a target village
+                        const isTargetVillage = type === 'to' || (!type && link.parentElement.cellIndex === 2); // Assuming target is 3rd column (index 2)
+                        if (isTargetVillage && villageInfo.playerName) {
                             const playerSpan = document.createElement('span');
                             playerSpan.style.color = '#666';
                             playerSpan.textContent = ` (${villageInfo.playerName})`;
