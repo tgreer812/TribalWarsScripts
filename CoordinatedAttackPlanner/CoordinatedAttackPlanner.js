@@ -1,3 +1,7 @@
+/**
+ * Coordinated Attack Planner v ALPHA 0.1.0
+ */
+
 (function() {
     // Utility function to get current server time
     function getCurrentServerTime() {
