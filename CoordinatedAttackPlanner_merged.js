@@ -1,5 +1,5 @@
 ﻿// Coordinated Attack Planner - Merged Build
-// Generated on: 2025-09-06 00:23:42
+// Generated on: 2025-09-11 18:23:25
 // This file is auto-generated. Do not edit directly.
 
 // ==================================================
@@ -2076,13 +2076,34 @@ window.CAP.UI = (function() {
                 
                 <div style="margin-bottom: 15px; padding: 10px; background: rgba(255,215,0,0.1); border: 1px solid #DAA520; border-radius: 4px;">
                     <strong>Attack Configuration:</strong><br>
-                    • For each attack, choose either a <strong>Template</strong> OR a <strong>Slowest Unit</strong><br>
-                    • Templates will use saved unit configurations from your account<br>
-                    • Slowest Unit will calculate send times based on the specified unit type<br>
-                    ${userTemplates.length === 0 ? 
-                        '• <strong style="color: #d32f2f;">No templates found - use Slowest Unit option or create templates in Rally Point first</strong><br>' : ''
-                    }
+                    • For each attack, select a <strong>Slowest Unit</strong> to calculate send times<br>
+                    • Use the mass assignment feature to quickly set all attacks to the same unit type<br>
                     • All attacks must be configured before the plan can be finalized
+                </div>
+                
+                <!-- Mass Assignment Section -->
+                <div style="margin-bottom: 20px; padding: 15px; background: rgba(76,175,80,0.1); border: 1px solid #4CAF50; border-radius: 4px;">
+                    <h3 style="margin: 0 0 10px 0; color: #2E7D32; font-size: 14px;">Mass Assignment</h3>
+                    <div style="display: flex; align-items: center; gap: 15px;">
+                        <label for="cap-mass-unit-select" style="font-weight: bold; color: #5D4037;">Set all attacks to:</label>
+                        <select id="cap-mass-unit-select" style="width: 180px; font-size: 12px;">
+                            <option value="">Select Unit...</option>
+                            <option value="spear">Spear fighter</option>
+                            <option value="sword">Swordsman</option>
+                            <option value="axe">Axeman</option>
+                            <option value="archer">Archer</option>
+                            <option value="spy">Scout</option>
+                            <option value="light">Light cavalry</option>
+                            <option value="marcher">Mounted archer</option>
+                            <option value="heavy">Heavy cavalry</option>
+                            <option value="ram">Ram</option>
+                            <option value="catapult">Catapult</option>
+                            <option value="knight">Paladin</option>
+                            <option value="snob">Nobleman</option>
+                        </select>
+                        <button class="cap-button" id="cap-mass-assign-btn" style="font-size: 12px; padding: 8px 16px;">Apply to All</button>
+                        <button class="cap-button" id="cap-clear-all-btn" style="font-size: 12px; padding: 8px 16px; background: #f44336;">Clear All</button>
+                    </div>
                 </div>
                 
                 <div style="margin: 20px 0; max-height: 400px; overflow-y: auto;">
@@ -2090,64 +2111,69 @@ window.CAP.UI = (function() {
                         <thead>
                             <tr>
                                 <th style="text-align: center; width: 40px;">#</th>
-                                <th style="width: 120px;">From</th>
-                                <th style="width: 120px;">To</th>
+                                <th style="width: 180px;">From</th>
+                                <th style="width: 180px;">To</th>
                                 <th style="width: 140px;">Landing Time</th>
                                 <th style="width: 120px;">Current Status</th>
-                                <th style="width: 200px;">Template Selection</th>
-                                <th style="width: 150px;">Slowest Unit</th>
+                                <th style="width: 180px;">Slowest Unit</th>
                             </tr>
                         </thead>
                         <tbody>
                             ${planData.attacks.map((attack, index) => {
                                 const isReady = window.CAP.State.isAttackReady(attack);
-                                const hasTemplate = window.CAP.State.hasTemplateAssigned(attack);
                                 const hasUnit = window.CAP.State.hasSlowestUnitAssigned(attack);
                                 
                                 let statusText = 'Needs Configuration';
                                 let statusColor = 'red';
                                 
-                                if (hasTemplate) {
-                                    statusText = `Template: ${attack.template}`;
-                                    statusColor = 'green';
-                                } else if (hasUnit) {
+                                if (hasUnit) {
                                     statusText = `Unit: ${attack.slowestUnit}`;
-                                    statusColor = 'blue';
+                                    statusColor = 'green';
                                 }
                                 
                                 // Determine current selection for UI state
-                                const currentTemplate = hasTemplate ? attack.template : '';
                                 const currentUnit = hasUnit ? attack.slowestUnit : '';
+                                
+                                // Format village names with links - handle both full objects and coordinate strings
+                                let fromVillageDisplay, toVillageDisplay;
+                                
+                                if (typeof attack.attackingVillage === 'object') {
+                                    // Full village object with name
+                                    const coords = attack.attackingVillage.coords;
+                                    const name = attack.attackingVillage.name;
+                                    const fullName = `${name} (${coords})`;
+                                    fromVillageDisplay = `<a href="/game.php?screen=info_village&x=${coords.split('|')[0]}&y=${coords.split('|')[1]}" target="_blank" title="View village info" data-coords="${coords}">${fullName}</a>`;
+                                } else {
+                                    // Just coordinates - will be updated async
+                                    const coords = attack.attackingVillage;
+                                    fromVillageDisplay = `<a href="/game.php?screen=info_village&x=${coords.split('|')[0]}&y=${coords.split('|')[1]}" target="_blank" title="View village info" data-coords="${coords}">${coords}</a>`;
+                                }
+                                
+                                if (typeof attack.targetVillage === 'object') {
+                                    // Full village object with name and player
+                                    const coords = attack.targetVillage.coords;
+                                    const name = attack.targetVillage.name;
+                                    const player = attack.targetVillage.player;
+                                    const fullName = `${name} (${coords})`;
+                                    const playerDisplay = player ? ` <span style="color: #666;">(${player})</span>` : '';
+                                    toVillageDisplay = `<a href="/game.php?screen=info_village&x=${coords.split('|')[0]}&y=${coords.split('|')[1]}" target="_blank" title="View village info" data-coords="${coords}">${fullName}</a>${playerDisplay}`;
+                                } else {
+                                    // Just coordinates - will be updated async
+                                    const coords = attack.targetVillage;
+                                    toVillageDisplay = `<a href="/game.php?screen=info_village&x=${coords.split('|')[0]}&y=${coords.split('|')[1]}" target="_blank" title="View village info" data-coords="${coords}">${coords}</a>`;
+                                }
                                 
                                 return `
                                     <tr>
                                         <td style="text-align: center;">${index + 1}</td>
-                                        <td>${attack.attackingVillage}</td>
-                                        <td>${attack.targetVillage}</td>
+                                        <td>${fromVillageDisplay}</td>
+                                        <td>${toVillageDisplay}</td>
                                         <td>${formatDateTime(attack.arrivalTime)}</td>
                                         <td style="color: ${statusColor}; font-weight: bold; font-size: 11px;">${statusText}</td>
                                         <td>
-                                            <select id="template-${index}" class="cap-template-select" 
-                                                    style="width: 180px; font-size: 11px; ${userTemplates.length === 0 || hasUnit ? 'opacity: 0.5;' : ''}" 
-                                                    onchange="handleTemplateUnitSelection(${index}, 'template', this.value)"
-                                                    ${hasUnit || userTemplates.length === 0 ? 'disabled' : ''}>
-                                                <option value="">Select Template...</option>
-                                                ${userTemplates.length > 0 ? 
-                                                    userTemplates.map(template => 
-                                                        `<option value="${template.name}" ${currentTemplate === template.name ? 'selected' : ''}>${template.name}</option>`
-                                                    ).join('') :
-                                                    '<option value="" disabled>No templates found</option>'
-                                                }
-                                            </select>
-                                            ${userTemplates.length === 0 ? 
-                                                '<br><small style="color: #666; font-size: 10px;">Create templates in Rally Point</small>' : ''
-                                            }
-                                        </td>
-                                        <td>
                                             <select id="slowest-unit-${index}" class="cap-unit-select" 
-                                                    style="width: 130px; font-size: 11px; ${hasTemplate ? 'opacity: 0.5;' : ''}"
-                                                    onchange="handleTemplateUnitSelection(${index}, 'unit', this.value)"
-                                                    ${hasTemplate ? 'disabled' : ''}>
+                                                    style="width: 160px; font-size: 11px;"
+                                                    onchange="handleUnitSelection(${index}, this.value)">
                                                 <option value="">Select Unit...</option>
                                                 <option value="spear" ${currentUnit === 'spear' ? 'selected' : ''}>Spear fighter</option>
                                                 <option value="sword" ${currentUnit === 'sword' ? 'selected' : ''}>Swordsman</option>
@@ -2180,41 +2206,63 @@ window.CAP.UI = (function() {
         // Show as a modal dialog
         Dialog.show('CoordinatedAttackPlanner', content);
         
-        // Add the selection handler function to global scope
-        window.handleTemplateUnitSelection = function(attackIndex, type, value) {
-            const templateSelect = document.getElementById(`template-${attackIndex}`);
-            const unitSelect = document.getElementById(`slowest-unit-${attackIndex}`);
+        // Update village links asynchronously with proper names
+        setTimeout(() => {
+            updateVillageLinksAsync();
+        }, 100);
+        
+        // Add the simplified unit selection handler function to global scope
+        window.handleUnitSelection = function(attackIndex, value) {
+            // Update the attack data with the selected unit
+            if (planData.attacks[attackIndex]) {
+                if (value) {
+                    planData.attacks[attackIndex].slowestUnit = value;
+                } else {
+                    delete planData.attacks[attackIndex].slowestUnit;
+                }
+                console.log(`Attack ${attackIndex} unit set to: ${value || 'none'}`);
+            }
+        };
+        
+        // Add mass assignment handler
+        window.handleMassAssign = function() {
+            const selectedUnit = document.getElementById('cap-mass-unit-select').value;
+            if (!selectedUnit) {
+                alert('Please select a unit type first.');
+                return;
+            }
             
-            if (type === 'template') {
-                if (value) {
-                    // Template selected, disable unit select and clear its value
-                    unitSelect.disabled = true;
-                    unitSelect.value = '';
-                    unitSelect.style.opacity = '0.5';
-                } else {
-                    // Template cleared, enable unit select (unless no templates available)
-                    unitSelect.disabled = false;
-                    unitSelect.style.opacity = '1';
+            // Apply to all unit selects and update attack data
+            const unitSelects = document.querySelectorAll('.cap-unit-select');
+            unitSelects.forEach((select, index) => {
+                select.value = selectedUnit;
+                // Update the corresponding attack data
+                if (planData.attacks[index]) {
+                    planData.attacks[index].slowestUnit = selectedUnit;
                 }
-            } else if (type === 'unit') {
-                if (value) {
-                    // Unit selected, disable template select and clear its value (if templates are available)
-                    if (templateSelect.options.length > 1 && templateSelect.options[1].value !== '') {
-                        templateSelect.disabled = true;
-                        templateSelect.value = '';
-                        templateSelect.style.opacity = '0.5';
+            });
+            
+            console.log(`Mass assigned all attacks to: ${selectedUnit}`);
+        };
+        
+        // Add clear all handler
+        window.handleClearAll = function() {
+            if (confirm('Are you sure you want to clear all unit assignments?')) {
+                const unitSelects = document.querySelectorAll('.cap-unit-select');
+                unitSelects.forEach((select, index) => {
+                    select.value = '';
+                    // Clear the attack data
+                    if (planData.attacks[index]) {
+                        delete planData.attacks[index].slowestUnit;
                     }
-                } else {
-                    // Unit cleared, enable template select (if templates are available)
-                    if (templateSelect.options.length > 1 && templateSelect.options[1].value !== '') {
-                        templateSelect.disabled = false;
-                        templateSelect.style.opacity = '1';
-                    }
-                }
+                });
+                console.log('Cleared all unit assignments');
             }
         };
         
         // Bind events
+        document.getElementById('cap-mass-assign-btn').onclick = window.handleMassAssign;
+        document.getElementById('cap-clear-all-btn').onclick = window.handleClearAll;
         document.getElementById('cap-finalize-plan').onclick = () => handleFinalizePlan(planData);
         document.getElementById('cap-template-cancel').onclick = () => {
             Dialog.close();
@@ -2224,36 +2272,16 @@ window.CAP.UI = (function() {
 
     // Handle plan finalization
     const handleFinalizePlan = (planData) => {
-        // Collect template and unit assignments for attacks that need them
-        const templateAssignments = [];
-        const unitAssignments = [];
+        // Check that all attacks have required configurations
         let missingConfigurations = [];
         
         for (let i = 0; i < planData.attacks.length; i++) {
             const attack = planData.attacks[i];
             
-            if (window.CAP.State.isAttackReady(attack)) {
-                // Attack already ready, no assignment needed
-                templateAssignments.push(null);
-                unitAssignments.push(null);
-            } else {
-                // Get template and unit selections
-                const templateSelect = document.getElementById(`template-${i}`);
-                const unitSelect = document.getElementById(`slowest-unit-${i}`);
-                
-                const selectedTemplate = templateSelect ? templateSelect.value : '';
-                const selectedUnit = unitSelect ? unitSelect.value : '';
-                
-                if (!selectedTemplate && !selectedUnit) {
+            if (!window.CAP.State.isAttackReady(attack)) {
+                // Attack needs slowest unit assignment
+                if (!window.CAP.State.hasSlowestUnitAssigned(attack)) {
                     missingConfigurations.push(i + 1);
-                    templateAssignments.push('');
-                    unitAssignments.push('');
-                } else if (selectedTemplate) {
-                    templateAssignments.push(selectedTemplate);
-                    unitAssignments.push('');
-                } else if (selectedUnit) {
-                    templateAssignments.push('');
-                    unitAssignments.push(selectedUnit);
                 }
             }
         }
@@ -2265,12 +2293,17 @@ window.CAP.UI = (function() {
                 missingConfigurations.join(', ') : 
                 `${missingConfigurations.slice(0, 3).join(', ')} and ${missingConfigurations.length - 3} more`;
             
-            alert(`Please configure ${attackText} ${attackList} with either a template or slowest unit before finalizing the plan.`);
+            alert(`Please configure ${attackText} ${attackList} with a slowest unit before finalizing the plan.`);
             return;
         }
         
-        // Finalize the plan with both template and unit assignments
-        const finalizeResult = window.CAP.State.finalizePlan(planData, templateAssignments, unitAssignments);
+        // Create unit assignments array based on current attack data
+        const unitAssignments = planData.attacks.map(attack => {
+            return window.CAP.State.isAttackReady(attack) ? null : attack.slowestUnit || '';
+        });
+        
+        // Finalize the plan with unit assignments only (no templates)
+        const finalizeResult = window.CAP.State.finalizePlan(planData, [], unitAssignments);
         
         if (!finalizeResult.isValid) {
             alert('Failed to finalize plan: ' + finalizeResult.error);
@@ -2554,8 +2587,8 @@ window.CAP.UI = (function() {
 
     // Update village links asynchronously with proper IDs and full names
     const updateVillageLinksAsync = async () => {
-        // Find all village links that need updating
-        const villageLinks = document.querySelectorAll('a[data-coords][data-attack-id]');
+        // Find all village links that need updating (both with and without attack-id)
+        const villageLinks = document.querySelectorAll('a[data-coords]');
         
         // Process links in small batches to avoid overwhelming the API
         const batchSize = 5;
@@ -2586,7 +2619,9 @@ window.CAP.UI = (function() {
                         link.title = `View village info - ${villageInfo.fullName}`;
                         
                         // If this is a target village and we have player info, add player name
-                        if (type === 'to' && villageInfo.playerName) {
+                        // Check for either explicit type attribute or if this looks like a target village
+                        const isTargetVillage = type === 'to' || (!type && link.parentElement.cellIndex === 2); // Assuming target is 3rd column (index 2)
+                        if (isTargetVillage && villageInfo.playerName) {
                             const playerSpan = document.createElement('span');
                             playerSpan.style.color = '#666';
                             playerSpan.textContent = ` (${villageInfo.playerName})`;
@@ -2939,6 +2974,10 @@ window.CAP.UI = (function() {
 // ==================================================
 // MAIN FILE
 // ==================================================
+
+/**
+ * Coordinated Attack Planner v ALPHA 0.1.0
+ */
 
 (function() {
     // Utility function to get current server time
@@ -3628,7 +3667,7 @@ window.CAP.UI = (function() {
                 name: targetVillage.name,
                 player: targetVillage.player
             },
-            arrivalTime: new Date(landingTime.replace(' ', 'T') + '.000Z').toISOString(),
+            arrivalTime: new Date(landingTime.replace(' ', 'T')).toISOString(),
             notes: notes,
             template: '', // Empty initially, filled during plan execution
             slowestUnit: '' // Empty initially, filled during plan execution
@@ -3639,7 +3678,7 @@ window.CAP.UI = (function() {
 
     function checkDuplicateAttack(attackingVillageId, targetVillageCoords, landingTime) {
         const existingAttacks = window.CAP.State.getAttacks();
-        const arrivalTimeISO = new Date(landingTime.replace(' ', 'T') + '.000Z').toISOString();
+        const arrivalTimeISO = new Date(landingTime.replace(' ', 'T')).toISOString();
         return existingAttacks.find(attack => 
             attack.attackingVillage.id === attackingVillageId &&
             attack.targetVillage.coords === targetVillageCoords &&
