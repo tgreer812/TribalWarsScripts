@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://tribalwars.scripts/coordinated-attack-plan.schema.json",
+  "title": "Coordinated Attack Plan",
+  "description": "Schema for Tribal Wars coordinated attack plans exported from the Coordinated Attack Planner script",
+  "type": "object",
+  "required": ["version", "createdAt", "exportedAt", "attacks"],
+  "properties": {
+    "version": {
+      "type": "string",
+      "description": "Schema version for backward compatibility",
+      "pattern": "^\\d+\\.\\d+$",
+      "examples": ["1.0"]
+    },
+    "createdAt": {
+      "type": "string",
+      "description": "ISO 8601 timestamp when the plan was first created",
+      "format": "date-time"
+    },
+    "exportedAt": {
+      "type": "string",
+      "description": "ISO 8601 timestamp when the plan was exported",
+      "format": "date-time"
+    },
+    "planName": {
+      "type": "string",
+      "description": "Optional name for the attack plan",
+      "maxLength": 100
+    },
+    "description": {
+      "type": "string",
+      "description": "Optional description of the attack plan",
+      "maxLength": 500
+    },
+    "attacks": {
+      "type": "array",
+      "description": "Array of coordinated attacks in the plan",
+      "items": {
+        "$ref": "#/$defs/attack"
+      },
+      "minItems": 1
+    }
+  },
+  "$defs": {
+    "attack": {
+      "type": "object",
+      "description": "A single coordinated attack",
+      "required": ["id", "attackingVillage", "targetVillage", "template", "slowestUnit", "arrivalTime"],
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the attack",
+          "pattern": "^attack_\\d+_[a-z0-9]+$"
+        },
+        "attackingVillage": {
+          "type": "string",
+          "description": "Coordinates of the attacking village in format 'xxx|yyy'",
+          "pattern": "^\\d{1,3}\\|\\d{1,3}$"
+        },
+        "targetVillage": {
+          "type": "string",
+          "description": "Coordinates of the target village in format 'xxx|yyy'",
+          "pattern": "^\\d{1,3}\\|\\d{1,3}$"
+        },
+        "template": {
+          "type": "string",
+          "description": "Attack template name (empty string if not yet assigned during planning phase)",
+          "examples": ["", "Full Nuke", "Fake", "Noble Train"]
+        },
+        "slowestUnit": {
+          "type": "string",
+          "description": "Slowest unit type in the attack (empty string if not yet determined during planning phase)",
+          "enum": ["", "spear", "sword", "axe", "archer", "spy", "light", "marcher", "heavy", "ram", "catapult", "knight", "snob"]
+        },
+        "arrivalTime": {
+          "type": "string",
+          "description": "Server time when the attack will arrive in YYYY-MM-DD HH:MM:SS format",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$"
+        },
+        "notes": {
+          "type": "string",
+          "description": "Optional notes about this specific attack",
+          "maxLength": 200
+        }
+      }
+    }
+  }
+}

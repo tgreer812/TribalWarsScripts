@@ -305,9 +305,111 @@ window.CAP.Validation = (function() {
         });
     };
 
+    // Version-specific Plan Validators
+    const PlanValidators = {
+        "1.0": class PlanValidator_v1_0 {
+            static validate(planData) {
+                const errors = [];
+
+                // Check required fields
+                if (!planData.version) errors.push('Missing required field: version');
+                if (!planData.createdAt) errors.push('Missing required field: createdAt');
+                if (!planData.exportedAt) errors.push('Missing required field: exportedAt');
+                if (!planData.attacks || !Array.isArray(planData.attacks)) {
+                    errors.push('Missing or invalid required field: attacks (must be array)');
+                } else if (planData.attacks.length === 0) {
+                    errors.push('Plan must contain at least one attack');
+                }
+
+                // Validate version format
+                if (planData.version !== "1.0") {
+                    errors.push('Invalid version: expected "1.0"');
+                }
+
+                // Validate timestamp formats (basic check)
+                const timestampRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
+                if (planData.createdAt && !timestampRegex.test(planData.createdAt)) {
+                    errors.push('Invalid createdAt timestamp format');
+                }
+                if (planData.exportedAt && !timestampRegex.test(planData.exportedAt)) {
+                    errors.push('Invalid exportedAt timestamp format');
+                }
+
+                // Validate optional fields (type checking)
+                if (planData.planName !== undefined && typeof planData.planName !== 'string') {
+                    errors.push('planName must be a string');
+                }
+                if (planData.description !== undefined && typeof planData.description !== 'string') {
+                    errors.push('description must be a string');
+                }
+
+                // Validate each attack
+                if (planData.attacks && Array.isArray(planData.attacks)) {
+                    planData.attacks.forEach((attack, index) => {
+                        const attackErrors = this.validateAttack(attack, index);
+                        errors.push(...attackErrors);
+                    });
+                }
+
+                return {
+                    isValid: errors.length === 0,
+                    errors: errors
+                };
+            }
+
+            static validateAttack(attack, index) {
+                const errors = [];
+                const prefix = `Attack ${index + 1}: `;
+
+                // Required fields
+                if (!attack.id) errors.push(prefix + 'Missing required field: id');
+                if (!attack.attackingVillage) errors.push(prefix + 'Missing required field: attackingVillage');
+                if (!attack.targetVillage) errors.push(prefix + 'Missing required field: targetVillage');
+                if (!attack.arrivalTime) errors.push(prefix + 'Missing required field: arrivalTime');
+
+                // Validate ID pattern
+                if (attack.id && !/^attack_\d+_[a-z0-9]+$/.test(attack.id)) {
+                    errors.push(prefix + 'Invalid id format (expected: attack_\\d+_[a-z0-9]+)');
+                }
+
+                // Validate attacking village coordinates
+                if (attack.attackingVillage && !/^\d{1,3}\|\d{1,3}$/.test(attack.attackingVillage)) {
+                    errors.push(prefix + 'Invalid attackingVillage format (expected: xxx|yyy)');
+                }
+
+                // Validate target village coordinates
+                if (attack.targetVillage && !/^\d{1,3}\|\d{1,3}$/.test(attack.targetVillage)) {
+                    errors.push(prefix + 'Invalid targetVillage format (expected: xxx|yyy)');
+                }
+
+                // Validate server time format (YYYY-MM-DD HH:MM:SS)
+                const serverTimeRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
+                if (attack.arrivalTime && !serverTimeRegex.test(attack.arrivalTime)) {
+                    errors.push(prefix + 'Invalid arrivalTime format (expected: YYYY-MM-DD HH:MM:SS)');
+                }
+
+                // Validate template and slowestUnit (should be strings)
+                if (attack.template !== undefined && typeof attack.template !== 'string') {
+                    errors.push(prefix + 'template must be a string');
+                }
+                if (attack.slowestUnit !== undefined && typeof attack.slowestUnit !== 'string') {
+                    errors.push(prefix + 'slowestUnit must be a string');
+                }
+
+                // Validate optional fields
+                if (attack.notes !== undefined && typeof attack.notes !== 'string') {
+                    errors.push(prefix + 'notes must be a string');
+                }
+
+                return errors;
+            }
+        }
+    };
+
     return {
         validatePlayer,
         validateTribe,
-        getPlayerVillages
+        getPlayerVillages,
+        PlanValidators
     };
 })();

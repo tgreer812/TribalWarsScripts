@@ -1,4 +1,311 @@
+/**
+ * Coordinated Attack Planner v ALPHA 0.1.0
+ */
+
 (function() {
+    // Utility function to get current server time
+    function getCurrentServerTime() {
+        try {
+            // Try to get server time from the DOM element that displays it
+            const serverTimeElement = document.getElementById('serverTime');
+            if (serverTimeElement) {
+                const timeText = serverTimeElement.closest('p').textContent;
+                const timeMatch = timeText.match(/\d+/g);
+                
+                if (timeMatch && timeMatch.length >= 6) {
+                    const [hour, min, sec, day, month, year] = timeMatch;
+                    return new Date(year, month - 1, day, hour, min, sec);
+                }
+            }
+            
+            // Fallback: try to find server time in other common locations
+            const timeElements = document.querySelectorAll('td, span, div');
+            for (const element of timeElements) {
+                const text = element.textContent;
+                // Look for time format like "12:34:56 01/02/2025" or similar
+                const timeMatch = text.match(/(\d{1,2}):(\d{2}):(\d{2})\s+(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+                if (timeMatch) {
+                    const [, hour, min, sec, day, month, year] = timeMatch;
+                    return new Date(year, month - 1, day, hour, min, sec);
+                }
+            }
+            
+            // If we can't find server time, this is a critical error
+            showServerTimeError();
+            throw new Error('Cannot find server time - coordinated attack timing would be inaccurate');
+        } catch (e) {
+            showServerTimeError();
+            throw new Error('Error getting server time: ' + e.message);
+        }
+    }
+
+    // Show critical error banner when server time cannot be determined
+    function showServerTimeError() {
+        // Remove any existing error banner
+        const existingBanner = document.getElementById('cap-server-time-error');
+        if (existingBanner) existingBanner.remove();
+
+        // Create error banner
+        const errorBanner = document.createElement('div');
+        errorBanner.id = 'cap-server-time-error';
+        errorBanner.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            background-color: #d32f2f;
+            color: white;
+            padding: 15px;
+            text-align: center;
+            font-weight: bold;
+            font-size: 14px;
+            z-index: 999999;
+            border-bottom: 3px solid #b71c1c;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        `;
+        errorBanner.innerHTML = `
+            ⚠️ CRITICAL ERROR: Cannot determine server time! 
+            Coordinated Attack Planner cannot function safely. 
+            Please refresh the page and try again. 
+            <button onclick="this.parentElement.remove()" style="margin-left: 15px; background: white; color: #d32f2f; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer;">Dismiss</button>
+        `;
+
+        // Insert at the beginning of the body
+        document.body.insertBefore(errorBanner, document.body.firstChild);
+
+        console.error('CAP: Critical error - cannot determine server time for coordinated attacks');
+    }
+
+    // Make the utility function globally available
+    window.CAP = window.CAP || {};
+    window.CAP.getCurrentServerTime = getCurrentServerTime;
+
+    // Utility function to calculate send time based on arrival time, distance, and unit speed
+    function calculateSendTime(arrivalTime, attackingCoords, targetCoords, slowestUnit) {
+        try {
+            const unitSpeeds = {
+                spear: 18, sword: 22, axe: 18, archer: 18, spy: 9,
+                light: 10, marcher: 10, heavy: 11, ram: 30, catapult: 30,
+                knight: 10, snob: 35
+            };
+            
+            // Calculate distance between villages
+            const [x1, y1] = attackingCoords.split('|').map(Number);
+            const [x2, y2] = targetCoords.split('|').map(Number);
+            const distance = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+            
+            // Get unit speed and world settings
+            const unitSpeed = unitSpeeds[slowestUnit] || 18;
+            const worldSpeed = window.game_data ? (window.game_data.speed || 1) : 1;
+            const unitSpeed_config = window.game_data ? (window.game_data.config?.speed || 1) : 1;
+            
+            // Calculate travel time in minutes
+            const travelTimeMinutes = distance * unitSpeed / (worldSpeed * unitSpeed_config);
+            
+            // Calculate send time
+            const arrivalDate = parseServerTimeString(arrivalTime);
+            const sendDate = new Date(arrivalDate.getTime() - (travelTimeMinutes * 60 * 1000));
+            
+            return formatDateForDisplay(sendDate);
+        } catch (error) {
+            console.warn('Error calculating send time:', error);
+            throw new Error('Cannot calculate send time: ' + error.message);
+        }
+    }
+
+    // Make the calculateSendTime function globally available
+    window.CAP.calculateSendTime = calculateSendTime;
+
+    // Utility function to calculate travel time in minutes
+    function calculateTravelTime(attackingCoords, targetCoords, slowestUnit) {
+        try {
+            const unitSpeeds = {
+                spear: 18, sword: 22, axe: 18, archer: 18, spy: 9,
+                light: 10, marcher: 10, heavy: 11, ram: 30, catapult: 30,
+                knight: 10, snob: 35
+            };
+            
+            // Calculate distance between villages
+            const [x1, y1] = attackingCoords.split('|').map(Number);
+            const [x2, y2] = targetCoords.split('|').map(Number);
+            const distance = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
+            
+            // Get unit speed and world settings
+            const unitSpeed = unitSpeeds[slowestUnit] || 18;
+            const worldSpeed = window.game_data ? (window.game_data.speed || 1) : 1;
+            const unitSpeed_config = window.game_data ? (window.game_data.config?.speed || 1) : 1;
+            
+            // Calculate travel time in minutes
+            const travelTimeMinutes = distance * unitSpeed / (worldSpeed * unitSpeed_config);
+            
+            return travelTimeMinutes;
+        } catch (error) {
+            console.warn('Error calculating travel time:', error);
+            return 0;
+        }
+    }
+
+    // Utility function to format travel time for display
+    function formatTravelTime(minutes) {
+        if (minutes === 0) return '--';
+        
+        const hours = Math.floor(minutes / 60);
+        const mins = Math.floor(minutes % 60);
+        const secs = Math.floor((minutes % 1) * 60);
+        
+        if (hours > 0) {
+            return `${hours}h ${mins}m`;
+        } else if (mins > 0) {
+            return `${mins}m ${secs}s`;
+        } else {
+            return `${secs}s`;
+        }
+    }
+
+    // Utility function to get village display name with link
+    function getVillageDisplayName(coords, villageName = null, playerName = null) {
+        const displayName = villageName || coords;
+        // Extract x and y coordinates for the info_village URL
+        const [x, y] = coords.split('|');
+        const linkUrl = `/game.php?screen=info_village&x=${x}&y=${y}`;
+        
+        if (playerName) {
+            return `<a href="${linkUrl}" target="_blank" title="View village info">${displayName}</a> <span style="color: #666;">(${playerName})</span>`;
+        } else {
+            return `<a href="${linkUrl}" target="_blank" title="View village info">${displayName}</a>`;
+        }
+    }
+
+    // Helper function to get full village information with proper ID-based link
+    async function getVillageFullInfo(coords) {
+        try {
+            const currentVillageId = game_data.village.id;
+            const encodedCoords = encodeURIComponent(coords);
+            const apiUrl = `/game.php?village=${currentVillageId}&screen=api&ajax=target_selection&input=${encodedCoords}&type=coord&request_id=${Date.now()}&limit=8&offset=0`;
+            
+            const response = await $.get(apiUrl);
+            let data;
+            if (typeof response === 'string') {
+                data = JSON.parse(response);
+            } else {
+                data = response;
+            }
+            
+            if (data && data.villages && Array.isArray(data.villages)) {
+                const village = data.villages.find(v => 
+                    v.x && v.y && `${v.x}|${v.y}` === coords
+                );
+                
+                if (village && village.id) {
+                    // Format the full name like "002 Aegis (307|441)"
+                    const fullName = `${village.name} (${coords})`;
+                    const linkUrl = `/game.php?screen=info_village&id=${village.id}#${coords.replace('|', ';')}`;
+                    
+                    return {
+                        id: village.id,
+                        name: village.name,
+                        fullName: fullName,
+                        coords: coords,
+                        playerName: village.player_name || null,
+                        linkUrl: linkUrl,
+                        found: true
+                    };
+                }
+            }
+            
+            // Fallback if village not found
+            return {
+                id: null,
+                name: null,
+                fullName: coords,
+                coords: coords,
+                playerName: null,
+                linkUrl: `/game.php?screen=info_village&x=${coords.split('|')[0]}&y=${coords.split('|')[1]}`,
+                found: false
+            };
+        } catch (error) {
+            console.warn('Error looking up village info:', error);
+            return {
+                id: null,
+                name: null,
+                fullName: coords,
+                coords: coords,
+                playerName: null,
+                linkUrl: `/game.php?screen=info_village&x=${coords.split('|')[0]}&y=${coords.split('|')[1]}`,
+                found: false
+            };
+        }
+    }
+
+    // Utility function to create village display with proper link and full name
+    async function getVillageDisplayNameWithLookup(coords, cachedVillageName = null, cachedPlayerName = null) {
+        // If we already have the village name from cache, use it to create the full display
+        if (cachedVillageName) {
+            const fullName = `${cachedVillageName} (${coords})`;
+            // Try to get the ID for a proper link, but don't wait for it
+            getVillageFullInfo(coords).then(info => {
+                if (info.found) {
+                    // Update the link in the DOM if possible
+                    const linkElement = document.querySelector(`a[data-coords="${coords}"]`);
+                    if (linkElement) {
+                        linkElement.href = info.linkUrl;
+                    }
+                }
+            }).catch(() => {
+                // Ignore errors for async updates
+            });
+            
+            const fallbackUrl = `/game.php?screen=info_village&x=${coords.split('|')[0]}&y=${coords.split('|')[1]}`;
+            const playerDisplay = cachedPlayerName ? ` <span style="color: #666;">(${cachedPlayerName})</span>` : '';
+            return `<a href="${fallbackUrl}" target="_blank" title="View village info" data-coords="${coords}">${fullName}</a>${playerDisplay}`;
+        }
+        
+        // Otherwise, do a full lookup
+        const villageInfo = await getVillageFullInfo(coords);
+        const playerDisplay = villageInfo.playerName ? ` <span style="color: #666;">(${villageInfo.playerName})</span>` : '';
+        return `<a href="${villageInfo.linkUrl}" target="_blank" title="View village info" data-coords="${coords}">${villageInfo.fullName}</a>${playerDisplay}`;
+    }
+
+    // Make utility functions globally available
+    window.CAP.calculateTravelTime = calculateTravelTime;
+    window.CAP.formatTravelTime = formatTravelTime;
+    window.CAP.getVillageDisplayName = getVillageDisplayName;
+    window.CAP.getVillageFullInfo = getVillageFullInfo;
+    window.CAP.getVillageDisplayNameWithLookup = getVillageDisplayNameWithLookup;
+    window.CAP.getVillageDisplayNameWithLookup = getVillageDisplayNameWithLookup;
+
+    // Centralized time handling utilities to ensure consistent behavior
+    // All times are kept as server time strings (YYYY-MM-DD HH:MM:SS format)
+    // NO conversion to UTC/ISO should ever happen for attack times
+    
+    // Convert YYYY-MM-DD HH:MM:SS format to Date object (server time as local time)
+    function parseServerTimeString(timeString) {
+        return new Date(timeString.replace(' ', 'T'));
+    }
+
+    // Format Date object to YYYY-MM-DD HH:MM:SS for display (NO ISO conversion)
+    function formatDateForDisplay(dateObject) {
+        const year = dateObject.getFullYear();
+        const month = String(dateObject.getMonth() + 1).padStart(2, '0');
+        const day = String(dateObject.getDate()).padStart(2, '0');
+        const hours = String(dateObject.getHours()).padStart(2, '0');
+        const minutes = String(dateObject.getMinutes()).padStart(2, '0');
+        const seconds = String(dateObject.getSeconds()).padStart(2, '0');
+        return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+    }
+
+    // Validate server time string format
+    function validateServerTimeString(timeString) {
+        const regex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
+        return regex.test(timeString);
+    }
+
+    // Make time utilities globally available
+    window.CAP.parseServerTimeString = parseServerTimeString;
+    window.CAP.formatDateForDisplay = formatDateForDisplay;
+    window.CAP.validateServerTimeString = validateServerTimeString;
+    window.CAP.formatDateForDisplay = formatDateForDisplay;
+
     // Utility to create modal
     function createModal() {
         // Remove any existing modal
@@ -14,7 +321,7 @@
         };
         document.getElementById('cap-import-btn').onclick = function() {
             Dialog.close();
-            alert('Import mode not yet implemented.');
+            window.CAP.UI.showImportDialog();
         };
     }
 
@@ -23,6 +330,8 @@
         window.CAP.UI.showPlanDesignPage();
         bindPlanDesignEvents();
         loadPlayerData();
+        // Initialize attack table
+        window.CAP.UI.updateAttackTable();
     }
 
     // Bind events for plan design page (prevent double binding)
@@ -48,12 +357,12 @@
         setupTargetVillageEvents();
         setupAttackingVillageEvents();
 
-        // Placeholder handlers
-        document.getElementById('cap-add-attack').onclick   = () => alert('Add attack - not implemented');
-        document.getElementById('cap-mass-add').onclick     = () => alert('Mass add - not implemented');
-        document.getElementById('cap-clear-attacks').onclick= () => alert('Clear attacks - not implemented');
+        // Attack management handlers
+        document.getElementById('cap-add-attack').onclick   = showAddAttackDialog;
+        document.getElementById('cap-mass-add').onclick     = showMassAddDialog;
+        document.getElementById('cap-clear-attacks').onclick= clearAllAttacks;
         document.getElementById('cap-preview').onclick      = () => alert('Preview plan - not implemented');
-        document.getElementById('cap-export').onclick       = () => alert('Export plan - not implemented');
+        document.getElementById('cap-export').onclick       = exportPlan;
     }
 
     // Attacking player events
@@ -283,6 +592,19 @@
         window.CAP.UI.updateTargetVillagesDisplay();
     };
 
+    // Attack management callbacks
+    window.CAP.removeAttack = attackId => {
+        if (confirm('Are you sure you want to remove this attack?')) {
+            window.CAP.State.removeAttack(attackId);
+            window.CAP.UI.updateAttackTable();
+            UI.SuccessMessage('Attack removed successfully');
+        }
+    };
+
+    window.CAP.editAttack = attackId => {
+        window.CAP.UI.showEditAttackDialog(attackId);
+    };
+
     // Add tribe members
     window.CAP.addTribeMembers = function() {
         const tribeTag = document.getElementById('tribe-input').value.trim();
@@ -320,6 +642,371 @@
     // Load player data
     function loadPlayerData() {
         console.log('Loading player data...');
+    }
+
+    // Helper functions for attack management
+    function validatePrerequisites() {
+        const attackingPlayer = window.CAP.State.getAttackingPlayer();
+        if (!attackingPlayer) {
+            return { isValid: false, message: 'Please select an attacking player first' };
+        }
+
+        const attackingVillages = window.CAP.State.getAttackingVillages();
+        if (attackingVillages.size === 0) {
+            return { isValid: false, message: 'Please select at least one attacking village first' };
+        }
+
+        const targetVillages = window.CAP.State.getTargetVillages();
+        if (targetVillages.size === 0) {
+            return { isValid: false, message: 'Please select at least one target village first' };
+        }
+
+        return { isValid: true };
+    }
+
+    function validateLandingTime(landingTime) {
+        if (!landingTime) {
+            return { isValid: false, message: 'Please enter a landing time' };
+        }
+
+        // Validate landing time format
+        const timeRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
+        if (!timeRegex.test(landingTime)) {
+            return { isValid: false, message: 'Invalid landing time format. Please use YYYY-MM-DD HH:MM:SS' };
+        }
+
+        // Validate landing time is in the future
+        const landingDate = window.CAP.parseServerTimeString(landingTime);
+        let serverTime;
+        
+        try {
+            serverTime = window.CAP.getCurrentServerTime();
+        } catch (error) {
+            return { isValid: false, message: 'Cannot validate time - unable to determine server time. Please refresh the page.' };
+        }
+        
+        if (landingDate <= serverTime) {
+            return { isValid: false, message: 'Landing time must be in the future' };
+        }
+
+        return { isValid: true, serverTime: serverTime };
+    }
+
+    function createAttackObject(attackingVillageId, targetVillageCoords, landingTime, notes = '') {
+        // Get village details
+        const attackingPlayer = window.CAP.State.getAttackingPlayer();
+        const playerVillages = window.CAP.State.getPlayerVillages(attackingPlayer);
+        const attackingVillage = playerVillages[attackingVillageId];
+        
+        const targetVillages = window.CAP.State.getTargetVillages();
+        const targetVillage = targetVillages.get(targetVillageCoords);
+
+        if (!attackingVillage) {
+            return { isValid: false, message: 'Selected attacking village not found' };
+        }
+
+        if (!targetVillage) {
+            return { isValid: false, message: 'Selected target village not found' };
+        }
+
+        // Create attack object
+        const attack = {
+            attackingVillage: {
+                id: attackingVillageId,
+                name: attackingVillage.name,
+                coords: attackingVillage.coords
+            },
+            targetVillage: {
+                coords: targetVillage.coords,
+                name: targetVillage.name,
+                player: targetVillage.player
+            },
+            arrivalTime: landingTime, // Keep as server time string
+            notes: notes,
+            template: '', // Empty initially, filled during plan execution
+            slowestUnit: '' // Empty initially, filled during plan execution
+        };
+
+        return { isValid: true, attack: attack };
+    }
+
+    function checkDuplicateAttack(attackingVillageId, targetVillageCoords, landingTime) {
+        const existingAttacks = window.CAP.State.getAttacks();
+        // Compare server time strings directly, no conversion
+        return existingAttacks.find(attack => 
+            attack.attackingVillage.id === attackingVillageId &&
+            attack.targetVillage.coords === targetVillageCoords &&
+            attack.arrivalTime === landingTime
+        );
+    }
+
+    function generateAttackCombinations() {
+        const attackingVillages = window.CAP.State.getAttackingVillages();
+        const targetVillages = window.CAP.State.getTargetVillages();
+        const attackingPlayer = window.CAP.State.getAttackingPlayer();
+        const playerVillages = window.CAP.State.getPlayerVillages(attackingPlayer);
+        
+        const combinations = [];
+        
+        attackingVillages.forEach(attackingVillageId => {
+            const attackingVillage = playerVillages[attackingVillageId];
+            if (attackingVillage) {
+                targetVillages.forEach((targetVillage, targetCoords) => {
+                    combinations.push({
+                        attackingVillageId: attackingVillageId,
+                        attackingVillageName: attackingVillage.name,
+                        attackingVillageCoords: attackingVillage.coords,
+                        targetVillageCoords: targetCoords,
+                        targetVillageName: targetVillage.name,
+                        targetVillagePlayer: targetVillage.player
+                    });
+                });
+            }
+        });
+        
+        return combinations;
+    }
+
+    // Attack management functions
+    function showAddAttackDialog() {
+        // Validate prerequisites
+        const validation = validatePrerequisites();
+        if (!validation.isValid) {
+            return UI.ErrorMessage(validation.message);
+        }
+
+        // Show the dialog
+        window.CAP.UI.showAddAttackDialog();
+
+        // Bind dialog events
+        document.getElementById('cap-attack-cancel').onclick = function() {
+            Dialog.close();
+        };
+
+        document.getElementById('cap-attack-save').onclick = function() {
+            saveNewAttack();
+        };
+    }
+
+    function saveNewAttack() {
+        const attackingVillageId = document.getElementById('cap-attack-attacking-village').value;
+        const targetVillageCoords = document.getElementById('cap-attack-target-village').value;
+        const landingTime = document.getElementById('cap-attack-landing-time').value.trim();
+        const notes = document.getElementById('cap-attack-notes').value.trim();
+
+        // Validate landing time
+        const landingTimeValidation = validateLandingTime(landingTime);
+        if (!landingTimeValidation.isValid) {
+            return UI.ErrorMessage(landingTimeValidation.message);
+        }
+
+        // Check for duplicate attacks
+        const duplicate = checkDuplicateAttack(attackingVillageId, targetVillageCoords, landingTime);
+        if (duplicate) {
+            return UI.ErrorMessage('An identical attack (same attacking village, target, and time) already exists');
+        }
+
+        // Create attack object
+        const attackObject = createAttackObject(attackingVillageId, targetVillageCoords, landingTime, notes);
+        if (!attackObject.isValid) {
+            return UI.ErrorMessage(attackObject.message);
+        }
+
+        // Add attack to state
+        window.CAP.State.addAttack(attackObject.attack);
+        
+        // Update UI
+        window.CAP.UI.updateAttackTable();
+        
+        // Close dialog and show success
+        Dialog.close();
+        UI.SuccessMessage('Attack added successfully');
+    }
+
+    function clearAllAttacks() {
+        const attacks = window.CAP.State.getAttacks();
+        if (attacks.length === 0) {
+            return UI.InfoMessage('No attacks to clear');
+        }
+
+        if (confirm(`Are you sure you want to clear all ${attacks.length} attacks?`)) {
+            window.CAP.State.clearAttacks();
+            window.CAP.UI.updateAttackTable();
+            UI.SuccessMessage('All attacks cleared');
+        }
+    }
+
+    // Mass Add functions
+    function showMassAddDialog() {
+        // Validate prerequisites
+        const validation = validatePrerequisites();
+        if (!validation.isValid) {
+            return UI.ErrorMessage(validation.message);
+        }
+
+        // Show the dialog
+        window.CAP.UI.showMassAddDialog();
+
+        // Bind dialog events
+        document.getElementById('cap-mass-add-cancel').onclick = function() {
+            Dialog.close();
+        };
+
+        document.getElementById('cap-mass-add-save').onclick = function() {
+            saveMassAttacks();
+        };
+
+        // Bind preview update to time spread changes
+        document.getElementById('cap-mass-add-time-spread').oninput = function() {
+            window.CAP.UI.updateMassAddPreview();
+        };
+    }
+
+    function saveMassAttacks() {
+        const landingTime = document.getElementById('cap-mass-add-landing-time').value.trim();
+        const timeSpread = parseInt(document.getElementById('cap-mass-add-time-spread').value) || 0;
+        const globalNotes = document.getElementById('cap-mass-add-notes').value.trim();
+
+        // Validate landing time
+        const landingTimeValidation = validateLandingTime(landingTime);
+        if (!landingTimeValidation.isValid) {
+            return UI.ErrorMessage(landingTimeValidation.message);
+        }
+
+        // Generate all attack combinations
+        const combinations = generateAttackCombinations();
+        
+        if (combinations.length === 0) {
+            return UI.ErrorMessage('No attack combinations found');
+        }
+
+        // Show confirmation for large batches
+        if (combinations.length > 20) {
+            if (!confirm(`This will create ${combinations.length} attacks. Are you sure you want to continue?`)) {
+                return;
+            }
+        }
+
+        // Disable the save button and show progress
+        const saveBtn = document.getElementById('cap-mass-add-save');
+        const originalText = saveBtn.textContent;
+        saveBtn.disabled = true;
+        saveBtn.textContent = 'Creating attacks...';
+
+        let createdCount = 0;
+        let skippedCount = 0;
+        let errorCount = 0;
+        const errors = [];
+
+        // Process attacks in batches to avoid blocking UI
+        let index = 0;
+        
+        function processNextBatch() {
+            const batchSize = 10; // Process 10 attacks at a time
+            const batchEnd = Math.min(index + batchSize, combinations.length);
+            
+            for (let i = index; i < batchEnd; i++) {
+                const combo = combinations[i];
+                
+                // Calculate time offset
+                const offsetSeconds = i * timeSpread;
+                const attackLandingTime = window.CAP.parseServerTimeString(landingTime);
+                attackLandingTime.setSeconds(attackLandingTime.getSeconds() + offsetSeconds);
+                const formattedLandingTime = window.CAP.formatDateForDisplay(attackLandingTime);
+                
+                // Check for duplicates
+                const duplicate = checkDuplicateAttack(combo.attackingVillageId, combo.targetVillageCoords, formattedLandingTime);
+                if (duplicate) {
+                    skippedCount++;
+                    continue;
+                }
+                
+                // Create attack object
+                const attackObject = createAttackObject(
+                    combo.attackingVillageId, 
+                    combo.targetVillageCoords, 
+                    formattedLandingTime, 
+                    globalNotes
+                );
+                
+                if (attackObject.isValid) {
+                    window.CAP.State.addAttack(attackObject.attack);
+                    createdCount++;
+                } else {
+                    errorCount++;
+                    errors.push(`${combo.attackingVillageName} → ${combo.targetVillageName}: ${attackObject.message}`);
+                }
+            }
+            
+            index = batchEnd;
+            
+            // Update progress
+            saveBtn.textContent = `Creating attacks... (${index}/${combinations.length})`;
+            
+            if (index < combinations.length) {
+                // Continue processing next batch
+                setTimeout(processNextBatch, 10);
+            } else {
+                // Finished processing all attacks
+                finishMassAdd();
+            }
+        }
+        
+        function finishMassAdd() {
+            // Re-enable button
+            saveBtn.disabled = false;
+            saveBtn.textContent = originalText;
+            
+            // Update UI
+            window.CAP.UI.updateAttackTable();
+            
+            // Close dialog
+            Dialog.close();
+            
+            // Show summary
+            let message = `Mass Add Complete: Created ${createdCount} attacks`;
+            
+            if (skippedCount > 0) {
+                message += `, skipped ${skippedCount} duplicates`;
+            }
+            
+            if (errorCount > 0) {
+                message += `, ${errorCount} errors occurred`;
+                console.warn('Mass Add Errors:', errors);
+            }
+            
+            if (errorCount > 0) {
+                UI.ErrorMessage(message + '. Check console for error details.');
+            } else {
+                UI.SuccessMessage(message);
+            }
+        }
+        
+        // Start processing
+        processNextBatch();
+    }
+
+    // Export plan functionality
+    function exportPlan() {
+        // Get plan details from UI
+        const planName = document.getElementById('cap-plan-name') ? 
+            document.getElementById('cap-plan-name').value.trim() : '';
+        const description = document.getElementById('cap-plan-description') ? 
+            document.getElementById('cap-plan-description').value.trim() : '';
+
+        // Call export function from state module
+        const exportResult = window.CAP.State.exportPlan(planName, description);
+
+        if (!exportResult.isValid) {
+            return UI.ErrorMessage(`Export failed: ${exportResult.error}`);
+        }
+
+        // Show export modal with the base64 data
+        window.CAP.UI.showExportPlanModal(
+            exportResult.base64, 
+            exportResult.attackCount, 
+            planName || 'Unnamed Plan'
+        );
     }
 
     // Run on script load

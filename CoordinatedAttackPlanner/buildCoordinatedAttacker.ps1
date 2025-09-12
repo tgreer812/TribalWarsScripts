@@ -2,19 +2,19 @@
 # Merges all module files into a single executable script
 
 param(
-    [string]$OutputPath = ".\CoordinatedAttackPlanner_merged.js"
+    [string]$OutputPath = "..\CoordinatedAttackPlanner_merged.js"
 )
 
 Write-Host "Building Coordinated Attack Planner..." -ForegroundColor Green
 
 # Define the source files in the order they should be merged
 $moduleFiles = @(
-    ".\CoordinatedAttackPlanner\modules\cap-state.js",
-    ".\CoordinatedAttackPlanner\modules\cap-validation.js", 
-    ".\CoordinatedAttackPlanner\modules\cap-ui.js"
+    ".\modules\cap-state.js",
+    ".\modules\cap-validation.js", 
+    ".\modules\cap-ui.js"
 )
 
-$mainFile = ".\CoordinatedAttackPlanner\CoordinatedAttackPlanner.js"
+$mainFile = ".\CoordinatedAttackPlanner.js"
 
 # Check if all source files exist
 $missingFiles = @()
