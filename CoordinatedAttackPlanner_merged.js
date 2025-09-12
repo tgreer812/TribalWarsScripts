@@ -1,5 +1,5 @@
 ﻿// Coordinated Attack Planner - Merged Build
-// Generated on: 2025-09-11 18:23:25
+// Generated on: 2025-09-11 21:16:14
 // This file is auto-generated. Do not edit directly.
 
 // ==================================================
@@ -424,13 +424,14 @@ window.CAP.State = (function() {
             const travelTimeMinutes = distance * unitSpeed / (worldSpeed * unitSpeed_config);
             
             // Calculate send time
-            const arrivalDate = new Date(arrivalTime);
+            const arrivalDate = window.CAP.parseServerTimeString(arrivalTime);
             const sendDate = new Date(arrivalDate.getTime() - (travelTimeMinutes * 60 * 1000));
             
-            return sendDate.toISOString();
+            return window.CAP.formatDateForDisplay(sendDate);
         } catch (error) {
             console.warn('Error calculating send time:', error);
-            return new Date().toISOString(); // Fallback to current time
+            // Return current server time as fallback, not ISO
+            return window.CAP.formatDateForDisplay(new Date());
         }
     };
 
@@ -940,10 +941,10 @@ window.CAP.Validation = (function() {
                     errors.push(prefix + 'Invalid targetVillage format (expected: xxx|yyy)');
                 }
 
-                // Validate timestamp
-                const timestampRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
-                if (attack.arrivalTime && !timestampRegex.test(attack.arrivalTime)) {
-                    errors.push(prefix + 'Invalid arrivalTime timestamp format');
+                // Validate server time format (YYYY-MM-DD HH:MM:SS)
+                const serverTimeRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
+                if (attack.arrivalTime && !serverTimeRegex.test(attack.arrivalTime)) {
+                    errors.push(prefix + 'Invalid arrivalTime format (expected: YYYY-MM-DD HH:MM:SS)');
                 }
 
                 // Validate template and slowestUnit (should be strings)
@@ -1657,7 +1658,7 @@ window.CAP.UI = (function() {
         }
         
         const defaultTime = new Date(serverTime.getTime() + 60 * 60 * 1000); // 1 hour from now
-        const defaultTimeStr = defaultTime.toISOString().slice(0, 19).replace('T', ' ');
+        const defaultTimeStr = window.CAP.formatDateForDisplay(defaultTime);
 
         const html = `
             ${styles}
@@ -1694,6 +1695,238 @@ window.CAP.UI = (function() {
         `;
 
         Dialog.show('AddAttack', html);
+    };
+
+    // Show edit attack dialog
+    const showEditAttackDialog = (attackId) => {
+        // Get the existing attack data
+        const attack = window.CAP.State.getAttackById(attackId);
+        if (!attack) {
+            alert('Attack not found');
+            return;
+        }
+
+        const styles = `
+            <style>
+                .cap-attack-form {
+                    padding: 20px;
+                    background: url('graphic/index/main_bg.jpg') 100% 0% #E3D5B3;
+                    border: 2px solid #7D510F;
+                    border-radius: 8px;
+                }
+                .cap-attack-form h3 {
+                    color: #7D510F;
+                    margin-bottom: 15px;
+                    font-size: 16px;
+                }
+                .cap-attack-form-group {
+                    margin-bottom: 15px;
+                }
+                .cap-attack-form-group label {
+                    display: block;
+                    margin-bottom: 5px;
+                    font-weight: bold;
+                    color: #5D4037;
+                }
+                .cap-attack-form select,
+                .cap-attack-form input,
+                .cap-attack-form textarea {
+                    width: 100%;
+                    padding: 8px;
+                    border: 1px solid #7D510F;
+                    border-radius: 4px;
+                    font-size: 12px;
+                    box-sizing: border-box;
+                }
+                .cap-attack-form textarea {
+                    height: 60px;
+                    resize: vertical;
+                }
+                .cap-edit-attack-dialog-buttons {
+                    display: flex;
+                    justify-content: flex-end;
+                    gap: 10px;
+                    margin-top: 20px;
+                }
+            </style>
+        `;
+
+        // Get available attacking villages
+        const attackingPlayer = window.CAP.State.getAttackingPlayer();
+        const attackingVillages = window.CAP.State.getAttackingVillages();
+        const playerVillages = window.CAP.State.getPlayerVillages(attackingPlayer);
+        
+        let attackingVillageOptions = '';
+        attackingVillages.forEach(villageId => {
+            const village = playerVillages[villageId];
+            if (village) {
+                const isSelected = attack.attackingVillage.id === villageId ? 'selected' : '';
+                attackingVillageOptions += `<option value="${villageId}" ${isSelected}>${village.name} (${village.coords})</option>`;
+            }
+        });
+
+        // Get available target villages
+        const targetVillages = window.CAP.State.getTargetVillages();
+        let targetVillageOptions = '';
+        targetVillages.forEach((village, coords) => {
+            const isSelected = attack.targetVillage.coords === coords ? 'selected' : '';
+            targetVillageOptions += `<option value="${coords}" ${isSelected}>${village.name} (${coords}) - ${village.player}</option>`;
+        });
+
+        // Format the existing landing time for display (already a server time string)
+        const landingTimeStr = attack.arrivalTime;
+
+        const html = `
+            ${styles}
+            <div class="cap-attack-form">
+                <h3>Edit Attack</h3>
+                <div class="cap-attack-form-group">
+                    <label for="cap-edit-attack-attacking-village">Attacking Village:</label>
+                    <select id="cap-edit-attack-attacking-village">
+                        <option value="">-- Select Attacking Village --</option>
+                        ${attackingVillageOptions}
+                    </select>
+                </div>
+                <div class="cap-attack-form-group">
+                    <label for="cap-edit-attack-target-village">Target Village:</label>
+                    <select id="cap-edit-attack-target-village">
+                        <option value="">-- Select Target Village --</option>
+                        ${targetVillageOptions}
+                    </select>
+                </div>
+                <div class="cap-attack-form-group">
+                    <label for="cap-edit-attack-landing-time">Landing Time (Server Time):</label>
+                    <input type="text" id="cap-edit-attack-landing-time" value="${landingTimeStr}" placeholder="YYYY-MM-DD HH:MM:SS">
+                    <small style="display: block; margin-top: 5px; color: #666;">Format: YYYY-MM-DD HH:MM:SS (e.g., 2025-09-05 15:30:00)</small>
+                </div>
+                <div class="cap-attack-form-group">
+                    <label for="cap-edit-attack-notes">Notes (Optional):</label>
+                    <textarea id="cap-edit-attack-notes" placeholder="Optional notes about this attack...">${attack.notes || ''}</textarea>
+                </div>
+                <div class="cap-edit-attack-dialog-buttons">
+                    <button class="cap-button" id="cap-edit-attack-cancel">Cancel</button>
+                    <button class="cap-button" id="cap-edit-attack-save">Save Changes</button>
+                </div>
+            </div>
+        `;
+
+        Dialog.show('EditAttack', html);
+
+        // Bind dialog events
+        document.getElementById('cap-edit-attack-cancel').onclick = function() {
+            Dialog.close();
+        };
+
+        document.getElementById('cap-edit-attack-save').onclick = function() {
+            saveEditedAttack(attackId);
+        };
+    };
+
+    // Save edited attack
+    const saveEditedAttack = (attackId) => {
+        const attackingVillageId = document.getElementById('cap-edit-attack-attacking-village').value;
+        const targetVillageCoords = document.getElementById('cap-edit-attack-target-village').value;
+        const landingTime = document.getElementById('cap-edit-attack-landing-time').value.trim();
+        const notes = document.getElementById('cap-edit-attack-notes').value.trim();
+
+        // Basic validation
+        if (!attackingVillageId) {
+            alert('Please select an attacking village');
+            return;
+        }
+
+        if (!targetVillageCoords) {
+            alert('Please select a target village');
+            return;
+        }
+
+        // Validate landing time format
+        const timeRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
+        if (!timeRegex.test(landingTime)) {
+            alert('Invalid landing time format. Please use YYYY-MM-DD HH:MM:SS');
+            return;
+        }
+
+        // Validate landing time is in the future
+        const landingDate = window.CAP.parseServerTimeString(landingTime);
+        let serverTime;
+        
+        try {
+            serverTime = window.CAP.getCurrentServerTime();
+        } catch (error) {
+            alert('Cannot validate time - unable to determine server time. Please refresh the page.');
+            return;
+        }
+        
+        if (landingDate <= serverTime) {
+            alert('Landing time must be in the future');
+            return;
+        }
+
+        // Get village details for the updated attack
+        const attackingPlayer = window.CAP.State.getAttackingPlayer();
+        const playerVillages = window.CAP.State.getPlayerVillages(attackingPlayer);
+        const attackingVillage = playerVillages[attackingVillageId];
+        
+        const targetVillages = window.CAP.State.getTargetVillages();
+        const targetVillage = targetVillages.get(targetVillageCoords);
+
+        if (!attackingVillage) {
+            alert('Selected attacking village not found');
+            return;
+        }
+
+        if (!targetVillage) {
+            alert('Selected target village not found');
+            return;
+        }
+
+        // Check for duplicate attacks (excluding the current attack being edited)
+        const existingAttacks = window.CAP.State.getAttacks();
+        // Compare server time strings directly, no conversion
+        const duplicate = existingAttacks.find(attack => 
+            attack.id !== attackId && // Exclude current attack
+            attack.attackingVillage.id === attackingVillageId &&
+            attack.targetVillage.coords === targetVillageCoords &&
+            attack.arrivalTime === landingTime
+        );
+        
+        if (duplicate) {
+            alert('An identical attack (same attacking village, target, and time) already exists');
+            return;
+        }
+
+        // Prepare the updates
+        const updates = {
+            attackingVillage: {
+                id: attackingVillageId,
+                name: attackingVillage.name,
+                coords: attackingVillage.coords
+            },
+            targetVillage: {
+                coords: targetVillage.coords,
+                name: targetVillage.name,
+                player: targetVillage.player
+            },
+            arrivalTime: landingTime, // Keep as server time string
+            notes: notes
+        };
+
+        // Update the attack
+        window.CAP.State.updateAttack(attackId, updates);
+        
+        // Update UI
+        updateAttackTable();
+        
+        // Close dialog and show success
+        Dialog.close();
+        
+        // Show success message using the same pattern as other parts of the code
+        if (typeof UI !== 'undefined' && UI.SuccessMessage) {
+            UI.SuccessMessage('Attack updated successfully');
+        } else {
+            alert('Attack updated successfully');
+        }
     };
 
     // Show mass add dialog
@@ -1779,7 +2012,7 @@ window.CAP.UI = (function() {
         }
         
         const defaultTime = new Date(serverTime.getTime() + 60 * 60 * 1000); // 1 hour from now
-        const defaultTimeStr = defaultTime.toISOString().slice(0, 19).replace('T', ' ');
+        const defaultTimeStr = window.CAP.formatDateForDisplay(defaultTime);
 
         const html = `
             ${styles}
@@ -2468,7 +2701,7 @@ window.CAP.UI = (function() {
                                             attack.slowestUnit || attack.template
                                         );
                                         sendTimeDisplay = formatDateTime(sendTime);
-                                        sendTimeTarget = sendTime;
+                                        sendTimeTarget = sendTime; // Keep as server time string
                                         
                                         // Calculate travel time
                                         const travelTimeMinutes = window.CAP.calculateTravelTime(
@@ -2838,7 +3071,8 @@ window.CAP.UI = (function() {
                     return;
                 }
                 
-                const target = new Date(targetTime);
+                // Parse server time string to Date object
+                const target = window.CAP.parseServerTimeString(targetTime);
                 let now;
                 
                 try {
@@ -2956,6 +3190,7 @@ window.CAP.UI = (function() {
         showVillageLoadingIndicator,
         updateVillageLoadingMessage,
         showAddAttackDialog,
+        showEditAttackDialog,
         showMassAddDialog,
         updateMassAddPreview,
         updateAttackTable,
@@ -3080,10 +3315,10 @@ window.CAP.UI = (function() {
             const travelTimeMinutes = distance * unitSpeed / (worldSpeed * unitSpeed_config);
             
             // Calculate send time
-            const arrivalDate = new Date(arrivalTime);
+            const arrivalDate = parseServerTimeString(arrivalTime);
             const sendDate = new Date(arrivalDate.getTime() - (travelTimeMinutes * 60 * 1000));
             
-            return sendDate.toISOString();
+            return formatDateForDisplay(sendDate);
         } catch (error) {
             console.warn('Error calculating send time:', error);
             throw new Error('Cannot calculate send time: ' + error.message);
@@ -3250,6 +3485,38 @@ window.CAP.UI = (function() {
     window.CAP.getVillageFullInfo = getVillageFullInfo;
     window.CAP.getVillageDisplayNameWithLookup = getVillageDisplayNameWithLookup;
     window.CAP.getVillageDisplayNameWithLookup = getVillageDisplayNameWithLookup;
+
+    // Centralized time handling utilities to ensure consistent behavior
+    // All times are kept as server time strings (YYYY-MM-DD HH:MM:SS format)
+    // NO conversion to UTC/ISO should ever happen for attack times
+    
+    // Convert YYYY-MM-DD HH:MM:SS format to Date object (server time as local time)
+    function parseServerTimeString(timeString) {
+        return new Date(timeString.replace(' ', 'T'));
+    }
+
+    // Format Date object to YYYY-MM-DD HH:MM:SS for display (NO ISO conversion)
+    function formatDateForDisplay(dateObject) {
+        const year = dateObject.getFullYear();
+        const month = String(dateObject.getMonth() + 1).padStart(2, '0');
+        const day = String(dateObject.getDate()).padStart(2, '0');
+        const hours = String(dateObject.getHours()).padStart(2, '0');
+        const minutes = String(dateObject.getMinutes()).padStart(2, '0');
+        const seconds = String(dateObject.getSeconds()).padStart(2, '0');
+        return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+    }
+
+    // Validate server time string format
+    function validateServerTimeString(timeString) {
+        const regex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
+        return regex.test(timeString);
+    }
+
+    // Make time utilities globally available
+    window.CAP.parseServerTimeString = parseServerTimeString;
+    window.CAP.formatDateForDisplay = formatDateForDisplay;
+    window.CAP.validateServerTimeString = validateServerTimeString;
+    window.CAP.formatDateForDisplay = formatDateForDisplay;
 
     // Utility to create modal
     function createModal() {
@@ -3547,8 +3814,7 @@ window.CAP.UI = (function() {
     };
 
     window.CAP.editAttack = attackId => {
-        // For now, just show an alert - edit functionality can be implemented later
-        UI.InfoMessage('Edit attack functionality will be implemented in a future update');
+        window.CAP.UI.showEditAttackDialog(attackId);
     };
 
     // Add tribe members
@@ -3622,7 +3888,7 @@ window.CAP.UI = (function() {
         }
 
         // Validate landing time is in the future
-        const landingDate = new Date(landingTime.replace(' ', 'T'));
+        const landingDate = window.CAP.parseServerTimeString(landingTime);
         let serverTime;
         
         try {
@@ -3667,7 +3933,7 @@ window.CAP.UI = (function() {
                 name: targetVillage.name,
                 player: targetVillage.player
             },
-            arrivalTime: new Date(landingTime.replace(' ', 'T')).toISOString(),
+            arrivalTime: landingTime, // Keep as server time string
             notes: notes,
             template: '', // Empty initially, filled during plan execution
             slowestUnit: '' // Empty initially, filled during plan execution
@@ -3678,11 +3944,11 @@ window.CAP.UI = (function() {
 
     function checkDuplicateAttack(attackingVillageId, targetVillageCoords, landingTime) {
         const existingAttacks = window.CAP.State.getAttacks();
-        const arrivalTimeISO = new Date(landingTime.replace(' ', 'T')).toISOString();
+        // Compare server time strings directly, no conversion
         return existingAttacks.find(attack => 
             attack.attackingVillage.id === attackingVillageId &&
             attack.targetVillage.coords === targetVillageCoords &&
-            attack.arrivalTime === arrivalTimeISO
+            attack.arrivalTime === landingTime
         );
     }
 
@@ -3856,9 +4122,9 @@ window.CAP.UI = (function() {
                 
                 // Calculate time offset
                 const offsetSeconds = i * timeSpread;
-                const attackLandingTime = new Date(landingTime.replace(' ', 'T'));
+                const attackLandingTime = window.CAP.parseServerTimeString(landingTime);
                 attackLandingTime.setSeconds(attackLandingTime.getSeconds() + offsetSeconds);
-                const formattedLandingTime = attackLandingTime.toISOString().slice(0, 19).replace('T', ' ');
+                const formattedLandingTime = window.CAP.formatDateForDisplay(attackLandingTime);
                 
                 // Check for duplicates
                 const duplicate = checkDuplicateAttack(combo.attackingVillageId, combo.targetVillageCoords, formattedLandingTime);

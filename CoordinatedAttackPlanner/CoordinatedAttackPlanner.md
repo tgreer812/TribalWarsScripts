@@ -52,7 +52,7 @@ The plan export format uses a well-defined JSON structure that is base64-encoded
       "targetVillage": "501|501",
       "template": "",
       "slowestUnit": "",
-      "arrivalTime": "2025-09-05T12:30:00.000Z",
+      "arrivalTime": "2025-09-05 12:30:00",
       "notes": "Main attack"
     }
   ]
@@ -70,7 +70,7 @@ The plan export format uses a well-defined JSON structure that is base64-encoded
 
 ### Key Fields
 - **template** and **slowestUnit**: Empty strings during planning phase, filled during finalization
-- **arrivalTime**: When the attack should land (user-specified landing time)
+- **arrivalTime**: When the attack should land in server time format (YYYY-MM-DD HH:MM:SS)
 - **attackingVillage**: Coordinates of the attacking village (e.g., "500|500")  
 - **targetVillage**: Coordinates of the target village (e.g., "501|501")
 - **id**: Unique identifier with pattern `attack_\d+_[a-z0-9]+`

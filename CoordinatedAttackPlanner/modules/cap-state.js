@@ -416,13 +416,14 @@ window.CAP.State = (function() {
             const travelTimeMinutes = distance * unitSpeed / (worldSpeed * unitSpeed_config);
             
             // Calculate send time
-            const arrivalDate = new Date(arrivalTime);
+            const arrivalDate = window.CAP.parseServerTimeString(arrivalTime);
             const sendDate = new Date(arrivalDate.getTime() - (travelTimeMinutes * 60 * 1000));
             
-            return sendDate.toISOString();
+            return window.CAP.formatDateForDisplay(sendDate);
         } catch (error) {
             console.warn('Error calculating send time:', error);
-            return new Date().toISOString(); // Fallback to current time
+            // Return current server time as fallback, not ISO
+            return window.CAP.formatDateForDisplay(new Date());
         }
     };
 

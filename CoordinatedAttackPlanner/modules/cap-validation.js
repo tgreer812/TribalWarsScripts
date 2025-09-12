@@ -382,10 +382,10 @@ window.CAP.Validation = (function() {
                     errors.push(prefix + 'Invalid targetVillage format (expected: xxx|yyy)');
                 }
 
-                // Validate timestamp
-                const timestampRegex = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/;
-                if (attack.arrivalTime && !timestampRegex.test(attack.arrivalTime)) {
-                    errors.push(prefix + 'Invalid arrivalTime timestamp format');
+                // Validate server time format (YYYY-MM-DD HH:MM:SS)
+                const serverTimeRegex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
+                if (attack.arrivalTime && !serverTimeRegex.test(attack.arrivalTime)) {
+                    errors.push(prefix + 'Invalid arrivalTime format (expected: YYYY-MM-DD HH:MM:SS)');
                 }
 
                 // Validate template and slowestUnit (should be strings)

@@ -103,10 +103,10 @@
             const travelTimeMinutes = distance * unitSpeed / (worldSpeed * unitSpeed_config);
             
             // Calculate send time
-            const arrivalDate = new Date(arrivalTime);
+            const arrivalDate = parseServerTimeString(arrivalTime);
             const sendDate = new Date(arrivalDate.getTime() - (travelTimeMinutes * 60 * 1000));
             
-            return sendDate.toISOString();
+            return formatDateForDisplay(sendDate);
         } catch (error) {
             console.warn('Error calculating send time:', error);
             throw new Error('Cannot calculate send time: ' + error.message);
@@ -273,6 +273,38 @@
     window.CAP.getVillageFullInfo = getVillageFullInfo;
     window.CAP.getVillageDisplayNameWithLookup = getVillageDisplayNameWithLookup;
     window.CAP.getVillageDisplayNameWithLookup = getVillageDisplayNameWithLookup;
+
+    // Centralized time handling utilities to ensure consistent behavior
+    // All times are kept as server time strings (YYYY-MM-DD HH:MM:SS format)
+    // NO conversion to UTC/ISO should ever happen for attack times
+    
+    // Convert YYYY-MM-DD HH:MM:SS format to Date object (server time as local time)
+    function parseServerTimeString(timeString) {
+        return new Date(timeString.replace(' ', 'T'));
+    }
+
+    // Format Date object to YYYY-MM-DD HH:MM:SS for display (NO ISO conversion)
+    function formatDateForDisplay(dateObject) {
+        const year = dateObject.getFullYear();
+        const month = String(dateObject.getMonth() + 1).padStart(2, '0');
+        const day = String(dateObject.getDate()).padStart(2, '0');
+        const hours = String(dateObject.getHours()).padStart(2, '0');
+        const minutes = String(dateObject.getMinutes()).padStart(2, '0');
+        const seconds = String(dateObject.getSeconds()).padStart(2, '0');
+        return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`;
+    }
+
+    // Validate server time string format
+    function validateServerTimeString(timeString) {
+        const regex = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
+        return regex.test(timeString);
+    }
+
+    // Make time utilities globally available
+    window.CAP.parseServerTimeString = parseServerTimeString;
+    window.CAP.formatDateForDisplay = formatDateForDisplay;
+    window.CAP.validateServerTimeString = validateServerTimeString;
+    window.CAP.formatDateForDisplay = formatDateForDisplay;
 
     // Utility to create modal
     function createModal() {
@@ -570,8 +602,7 @@
     };
 
     window.CAP.editAttack = attackId => {
-        // For now, just show an alert - edit functionality can be implemented later
-        UI.InfoMessage('Edit attack functionality will be implemented in a future update');
+        window.CAP.UI.showEditAttackDialog(attackId);
     };
 
     // Add tribe members
@@ -645,7 +676,7 @@
         }
 
         // Validate landing time is in the future
-        const landingDate = new Date(landingTime.replace(' ', 'T'));
+        const landingDate = window.CAP.parseServerTimeString(landingTime);
         let serverTime;
         
         try {
@@ -690,7 +721,7 @@
                 name: targetVillage.name,
                 player: targetVillage.player
             },
-            arrivalTime: new Date(landingTime.replace(' ', 'T')).toISOString(),
+            arrivalTime: landingTime, // Keep as server time string
             notes: notes,
             template: '', // Empty initially, filled during plan execution
             slowestUnit: '' // Empty initially, filled during plan execution
@@ -701,11 +732,11 @@
 
     function checkDuplicateAttack(attackingVillageId, targetVillageCoords, landingTime) {
         const existingAttacks = window.CAP.State.getAttacks();
-        const arrivalTimeISO = new Date(landingTime.replace(' ', 'T')).toISOString();
+        // Compare server time strings directly, no conversion
         return existingAttacks.find(attack => 
             attack.attackingVillage.id === attackingVillageId &&
             attack.targetVillage.coords === targetVillageCoords &&
-            attack.arrivalTime === arrivalTimeISO
+            attack.arrivalTime === landingTime
         );
     }
 
@@ -879,9 +910,9 @@
                 
                 // Calculate time offset
                 const offsetSeconds = i * timeSpread;
-                const attackLandingTime = new Date(landingTime.replace(' ', 'T'));
+                const attackLandingTime = window.CAP.parseServerTimeString(landingTime);
                 attackLandingTime.setSeconds(attackLandingTime.getSeconds() + offsetSeconds);
-                const formattedLandingTime = attackLandingTime.toISOString().slice(0, 19).replace('T', ' ');
+                const formattedLandingTime = window.CAP.formatDateForDisplay(attackLandingTime);
                 
                 // Check for duplicates
                 const duplicate = checkDuplicateAttack(combo.attackingVillageId, combo.targetVillageCoords, formattedLandingTime);

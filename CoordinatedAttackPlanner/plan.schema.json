@@ -74,8 +74,8 @@
         },
         "arrivalTime": {
           "type": "string",
-          "description": "ISO 8601 timestamp when the attack will arrive",
-          "format": "date-time"
+          "description": "Server time when the attack will arrive in YYYY-MM-DD HH:MM:SS format",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2} \\d{2}:\\d{2}:\\d{2}$"
         },
         "notes": {
           "type": "string",
