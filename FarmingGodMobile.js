@@ -884,6 +884,9 @@ window.FarmGod.Main = (function (Library, Translation) {
         .map((i, el) => {
           let $el = $(el);
 
+          const dotImg = $el.find('img[src*="graphic/dots/"]');
+          const colorMatch = dotImg.attr('src')?.match(/dots\/(green|yellow|red|blue|red_blue)/);
+          
           return (data.farms.farms[
             $el
               .find('a[href*="screen=report&mode=all&view="]')
@@ -892,10 +895,7 @@ window.FarmGod.Main = (function (Library, Translation) {
               .toCoord()
           ] = {
             id: $el.attr('id').split('_')[1].toNumber(),
-            color: $el
-              .find('img[src*="graphic/dots/"]')
-              .attr('src')
-              .match(/dots\/(green|yellow|red|blue|red_blue)/)[1],
+            color: colorMatch ? colorMatch[1] : 'unknown',
             max_loot: $el.find('img[src*="max_loot/1"]').length > 0,
           });
         });
