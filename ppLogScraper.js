@@ -48,13 +48,14 @@
             },
             
             export: function(data) {
-                const headers = ['Date', 'World', 'Transaction', 'Change', 'NewPremiumPoints', 'MoreInformation'];
+                const headers = ['Date', 'Player', 'World', 'Transaction', 'Change', 'NewPremiumPoints', 'MoreInformation'];
                 const csvRows = [headers.join(',')];
                 
                 data.forEach(row => {
                     const isoDate = this.toISODate(row.date);
                     const csvRow = [
                         `"${isoDate}"`,
+                        `"${row.player.replace(/"/g, '""')}"`,
                         `"${row.world.replace(/"/g, '""')}"`,
                         `"${row.transaction.replace(/"/g, '""')}"`,
                         row.change,
@@ -309,8 +310,12 @@
                 const newPremiumPoints = parseInt(tds[4].textContent.trim(), 10);
                 const moreInformation = tds[5].textContent.trim();
                 
+                // Get player name from game data
+                const playerName = window.game_data?.player?.name || 'Unknown';
+                
                 rows.push({
                     date: DateUtils.normalizeDate(rawDate),
+                    player: playerName,
                     world: world,
                     transaction: transaction,
                     change: isNaN(change) ? 0 : change,
