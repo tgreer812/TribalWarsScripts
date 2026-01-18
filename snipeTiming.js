@@ -664,7 +664,7 @@ function initializeSnipeTiming() {
     window.SnipeTiming.Translation = (function() {
         const messages = {
             en_US: {
-                title: 'Snipe Timing Calculator',
+                title: 'Avarice Snipe Calc',
                 targetCoords: 'Target coordinates:',
                 arrivalDate: 'Arrival date:',
                 arrivalTime: 'Desired arrival time:',
