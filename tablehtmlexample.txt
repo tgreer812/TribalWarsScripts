@@ -1,0 +1,404 @@
+<table class="vis" style="width: 100%">
+	<tbody><tr><th>Date</th><th>World</th><th>Transaction</th><th>Change</th><th>New premium points</th><th>More Information</th></tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 17, 21:56&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Points redeemed&nbsp;</td>
+		<td>&nbsp;-30&nbsp;</td>
+		<td>&nbsp;3743&nbsp;</td>
+					<td>Reduce the construction cost -  - Timber camp (level 26)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 17, 21:52&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Points redeemed&nbsp;</td>
+		<td>&nbsp;-30&nbsp;</td>
+		<td>&nbsp;3773&nbsp;</td>
+					<td>Loot Assistant 30</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 17, 21:52&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Points redeemed&nbsp;</td>
+		<td>&nbsp;-200&nbsp;</td>
+		<td>&nbsp;3803&nbsp;</td>
+					<td>Account Manager 30</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 17, 18:53&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Premium Exchange&nbsp;</td>
+		<td>&nbsp;-12&nbsp;</td>
+		<td>&nbsp;4003&nbsp;</td>
+					<td>Premium Exchange: Iron purchased (3039)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 17, 18:53&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Premium Exchange&nbsp;</td>
+		<td>&nbsp;-15&nbsp;</td>
+		<td>&nbsp;4015&nbsp;</td>
+					<td>Premium Exchange: Wood purchased (3193)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 17, 17:06&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Points redeemed&nbsp;</td>
+		<td>&nbsp;-30&nbsp;</td>
+		<td>&nbsp;4030&nbsp;</td>
+					<td>Reduce the construction cost -  - Farm (level 27)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 17, 16:03&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Premium Exchange&nbsp;</td>
+		<td>&nbsp;-189&nbsp;</td>
+		<td>&nbsp;4060&nbsp;</td>
+					<td>Premium Exchange: Wood purchased (28001)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 17, 16:03&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Premium Exchange&nbsp;</td>
+		<td>&nbsp;-279&nbsp;</td>
+		<td>&nbsp;4249&nbsp;</td>
+					<td>Premium Exchange: Clay purchased (35083)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 17, 16:02&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Premium Exchange&nbsp;</td>
+		<td>&nbsp;-327&nbsp;</td>
+		<td>&nbsp;4528&nbsp;</td>
+					<td>Premium Exchange: Iron purchased (38069)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 17, 15:55&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Premium Exchange&nbsp;</td>
+		<td>&nbsp;-592&nbsp;</td>
+		<td>&nbsp;4855&nbsp;</td>
+					<td>Premium Exchange: Iron purchased (93169)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 17, 15:55&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Premium Exchange&nbsp;</td>
+		<td>&nbsp;-655&nbsp;</td>
+		<td>&nbsp;5447&nbsp;</td>
+					<td>Premium Exchange: Clay purchased (100113)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 17, 15:55&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Premium Exchange&nbsp;</td>
+		<td>&nbsp;-548&nbsp;</td>
+		<td>&nbsp;6102&nbsp;</td>
+					<td>Premium Exchange: Wood purchased (100005)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 17, 14:11&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Points redeemed&nbsp;</td>
+		<td>&nbsp;-30&nbsp;</td>
+		<td>&nbsp;6650&nbsp;</td>
+					<td>Reduce the construction cost -  - Clay pit (level 26)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 17, 07:08&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Premium Exchange&nbsp;</td>
+		<td>&nbsp;-145&nbsp;</td>
+		<td>&nbsp;6680&nbsp;</td>
+					<td>Premium Exchange: Iron purchased (30054)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 17, 07:08&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Premium Exchange&nbsp;</td>
+		<td>&nbsp;-229&nbsp;</td>
+		<td>&nbsp;6825&nbsp;</td>
+					<td>Premium Exchange: Clay purchased (40041)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 17, 07:08&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Premium Exchange&nbsp;</td>
+		<td>&nbsp;-214&nbsp;</td>
+		<td>&nbsp;7054&nbsp;</td>
+					<td>Premium Exchange: Wood purchased (40002)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 16, 23:51&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Points redeemed&nbsp;</td>
+		<td>&nbsp;-10&nbsp;</td>
+		<td>&nbsp;7268&nbsp;</td>
+					<td>Construction time reduction - en153 - Timber camp (level 24)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 16, 21:55&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Premium Exchange&nbsp;</td>
+		<td>&nbsp;-194&nbsp;</td>
+		<td>&nbsp;7278&nbsp;</td>
+					<td>Premium Exchange: Iron purchased (40135)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 16, 21:55&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Premium Exchange&nbsp;</td>
+		<td>&nbsp;-194&nbsp;</td>
+		<td>&nbsp;7472&nbsp;</td>
+					<td>Premium Exchange: Clay purchased (40112)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 16, 21:55&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Premium Exchange&nbsp;</td>
+		<td>&nbsp;-176&nbsp;</td>
+		<td>&nbsp;7666&nbsp;</td>
+					<td>Premium Exchange: Wood purchased (40168)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 16, 21:46&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Points redeemed&nbsp;</td>
+		<td>&nbsp;-30&nbsp;</td>
+		<td>&nbsp;7842&nbsp;</td>
+					<td>Reduce the construction cost -  - Academy (level 1)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 16, 20:39&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Premium Exchange&nbsp;</td>
+		<td>&nbsp;-607&nbsp;</td>
+		<td>&nbsp;7872&nbsp;</td>
+					<td>Premium Exchange: Iron purchased (100086)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 16, 20:38&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Premium Exchange&nbsp;</td>
+		<td>&nbsp;-762&nbsp;</td>
+		<td>&nbsp;8479&nbsp;</td>
+					<td>Premium Exchange: Clay purchased (120024)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 16, 20:38&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Premium Exchange&nbsp;</td>
+		<td>&nbsp;-684&nbsp;</td>
+		<td>&nbsp;9241&nbsp;</td>
+					<td>Premium Exchange: Wood purchased (110088)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 16, 20:18&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Points redeemed&nbsp;</td>
+		<td>&nbsp;-10&nbsp;</td>
+		<td>&nbsp;9925&nbsp;</td>
+					<td>Construction time reduction - en153 - Smithy (level 20)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 16, 20:15&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Premium Exchange&nbsp;</td>
+		<td>&nbsp;-108&nbsp;</td>
+		<td>&nbsp;9935&nbsp;</td>
+					<td>Premium Exchange: Iron purchased (20102)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 16, 20:15&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Premium Exchange&nbsp;</td>
+		<td>&nbsp;-108&nbsp;</td>
+		<td>&nbsp;10043&nbsp;</td>
+					<td>Premium Exchange: Clay purchased (20114)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 16, 20:15&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Premium Exchange&nbsp;</td>
+		<td>&nbsp;-109&nbsp;</td>
+		<td>&nbsp;10151&nbsp;</td>
+					<td>Premium Exchange: Wood purchased (20169)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 16, 19:46&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Points redeemed&nbsp;</td>
+		<td>&nbsp;-10&nbsp;</td>
+		<td>&nbsp;10260&nbsp;</td>
+					<td>Construction time reduction - en153 - Smithy (level 17)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 16, 19:46&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Points redeemed&nbsp;</td>
+		<td>&nbsp;-10&nbsp;</td>
+		<td>&nbsp;10270&nbsp;</td>
+					<td>Construction time reduction - en153 - Smithy (level 18)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 16, 19:46&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Points redeemed&nbsp;</td>
+		<td>&nbsp;-10&nbsp;</td>
+		<td>&nbsp;10280&nbsp;</td>
+					<td>Construction time reduction - en153 - Smithy (level 19)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 16, 19:46&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Points redeemed&nbsp;</td>
+		<td>&nbsp;-10&nbsp;</td>
+		<td>&nbsp;10290&nbsp;</td>
+					<td>Construction time reduction - en153 - Smithy (level 20)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 16, 19:46&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Points redeemed&nbsp;</td>
+		<td>&nbsp;-10&nbsp;</td>
+		<td>&nbsp;10300&nbsp;</td>
+					<td>Construction time reduction - en153 - Smithy (level 20)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 16, 19:46&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Points redeemed&nbsp;</td>
+		<td>&nbsp;-10&nbsp;</td>
+		<td>&nbsp;10310&nbsp;</td>
+					<td>Construction time reduction - en153 - Smithy (level 17)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 16, 19:46&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Points redeemed&nbsp;</td>
+		<td>&nbsp;-10&nbsp;</td>
+		<td>&nbsp;10320&nbsp;</td>
+					<td>Construction time reduction - en153 - Smithy (level 18)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 16, 19:46&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Points redeemed&nbsp;</td>
+		<td>&nbsp;-10&nbsp;</td>
+		<td>&nbsp;10330&nbsp;</td>
+					<td>Construction time reduction - en153 - Smithy (level 19)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 16, 19:46&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Points redeemed&nbsp;</td>
+		<td>&nbsp;-10&nbsp;</td>
+		<td>&nbsp;10340&nbsp;</td>
+					<td>Construction time reduction - en153 - Smithy (level 20)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 16, 19:00&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Points redeemed&nbsp;</td>
+		<td>&nbsp;-10&nbsp;</td>
+		<td>&nbsp;10350&nbsp;</td>
+					<td>Construction time reduction - en153 - Smithy (level 20)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 16, 19:00&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Points redeemed&nbsp;</td>
+		<td>&nbsp;-10&nbsp;</td>
+		<td>&nbsp;10360&nbsp;</td>
+					<td>Construction time reduction - en153 - Smithy (level 19)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 16, 19:00&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Points redeemed&nbsp;</td>
+		<td>&nbsp;-10&nbsp;</td>
+		<td>&nbsp;10370&nbsp;</td>
+					<td>Construction time reduction - en153 - Smithy (level 18)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 16, 19:00&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Points redeemed&nbsp;</td>
+		<td>&nbsp;-10&nbsp;</td>
+		<td>&nbsp;10380&nbsp;</td>
+					<td>Construction time reduction - en153 - Smithy (level 17)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 16, 19:00&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Points redeemed&nbsp;</td>
+		<td>&nbsp;-10&nbsp;</td>
+		<td>&nbsp;10390&nbsp;</td>
+					<td>Construction time reduction - en153 - Smithy (level 17)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 16, 19:00&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Points redeemed&nbsp;</td>
+		<td>&nbsp;-10&nbsp;</td>
+		<td>&nbsp;10400&nbsp;</td>
+					<td>Construction time reduction - en153 - Smithy (level 18)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 16, 19:00&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Points redeemed&nbsp;</td>
+		<td>&nbsp;-10&nbsp;</td>
+		<td>&nbsp;10410&nbsp;</td>
+					<td>Construction time reduction - en153 - Smithy (level 19)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 16, 18:16&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Points redeemed&nbsp;</td>
+		<td>&nbsp;-10&nbsp;</td>
+		<td>&nbsp;10420&nbsp;</td>
+					<td>Construction time reduction - en153 - Smithy (level 16)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 16, 18:16&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Points redeemed&nbsp;</td>
+		<td>&nbsp;-10&nbsp;</td>
+		<td>&nbsp;10430&nbsp;</td>
+					<td>Construction time reduction - en153 - Smithy (level 15)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 16, 18:16&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Points redeemed&nbsp;</td>
+		<td>&nbsp;-10&nbsp;</td>
+		<td>&nbsp;10440&nbsp;</td>
+					<td>Construction time reduction - en153 - Smithy (level 14)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 16, 18:16&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Points redeemed&nbsp;</td>
+		<td>&nbsp;-10&nbsp;</td>
+		<td>&nbsp;10450&nbsp;</td>
+					<td>Construction time reduction - en153 - Smithy (level 16)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 16, 18:16&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Points redeemed&nbsp;</td>
+		<td>&nbsp;-10&nbsp;</td>
+		<td>&nbsp;10460&nbsp;</td>
+					<td>Construction time reduction - en153 - Smithy (level 15)</td>
+			</tr>
+		<tr>
+		<td class="nowrap">&nbsp;Jan 16, 18:13&nbsp;</td>
+		<td> World 153</td>
+		<td>&nbsp;Points redeemed&nbsp;</td>
+		<td>&nbsp;-10&nbsp;</td>
+		<td>&nbsp;10470&nbsp;</td>
+					<td>Construction time reduction - en153 - Smithy (level 15)</td>
+			</tr>
+		</tbody>
+</table>
