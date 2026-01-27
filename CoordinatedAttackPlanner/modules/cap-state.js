@@ -393,40 +393,6 @@ window.CAP.State = (function() {
         return slowestUnit;
     };
 
-    // Calculate send time based on arrival time, distance, and unit speed
-    const calculateSendTime = (arrivalTime, attackingCoords, targetCoords, slowestUnit) => {
-        try {
-            const unitSpeeds = {
-                spear: 18, sword: 22, axe: 18, archer: 18, spy: 9,
-                light: 10, marcher: 10, heavy: 11, ram: 30, catapult: 30,
-                knight: 10, snob: 35
-            };
-            
-            // Calculate distance between villages
-            const [x1, y1] = attackingCoords.split('|').map(Number);
-            const [x2, y2] = targetCoords.split('|').map(Number);
-            const distance = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2));
-            
-            // Get unit speed and world settings
-            const unitSpeed = unitSpeeds[slowestUnit] || 18;
-            const worldSpeed = window.CAP.getWorldSpeed();
-            const unitSpeed_config = window.CAP.getUnitSpeedModifier();
-            
-            // Calculate travel time in minutes
-            const travelTimeMinutes = distance * unitSpeed / (worldSpeed * unitSpeed_config);
-            
-            // Calculate send time
-            const arrivalDate = window.CAP.parseServerTimeString(arrivalTime);
-            const sendDate = new Date(arrivalDate.getTime() - (travelTimeMinutes * 60 * 1000));
-            
-            return window.CAP.formatDateForDisplay(sendDate);
-        } catch (error) {
-            console.warn('Error calculating send time:', error);
-            // Return current server time as fallback, not ISO
-            return window.CAP.formatDateForDisplay(new Date());
-        }
-    };
-
     // Finalize plan with template and unit assignments
     const finalizePlan = (planData, templateAssignments, unitAssignments = null) => {
         try {
