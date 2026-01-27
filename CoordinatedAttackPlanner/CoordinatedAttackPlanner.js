@@ -80,6 +80,62 @@
     window.CAP = window.CAP || {};
     window.CAP.getCurrentServerTime = getCurrentServerTime;
 
+    // World settings cache
+    window.CAP._worldSettings = null;
+
+    // Fetch world settings from the game config API
+    async function fetchWorldSettings() {
+        if (window.CAP._worldSettings) {
+            return window.CAP._worldSettings;
+        }
+
+        // Check localStorage cache first (valid for 1 hour)
+        const cached = localStorage.getItem('CAP_worldSettings');
+        const timestamp = localStorage.getItem('CAP_worldSettings_timestamp');
+        if (cached && timestamp && (Date.now() - parseInt(timestamp) < 3600000)) {
+            window.CAP._worldSettings = JSON.parse(cached);
+            console.log('CAP: Using cached world settings:', window.CAP._worldSettings);
+            return window.CAP._worldSettings;
+        }
+
+        try {
+            const configUrl = '/interface.php?func=get_config';
+            const response = await $.get(configUrl);
+            const $xml = $(response);
+            
+            const settings = {
+                speed: parseFloat($xml.find('config > speed').text()) || 1,
+                unit_speed: parseFloat($xml.find('config > unit_speed').text()) || 1
+            };
+
+            // Cache the settings
+            window.CAP._worldSettings = settings;
+            localStorage.setItem('CAP_worldSettings', JSON.stringify(settings));
+            localStorage.setItem('CAP_worldSettings_timestamp', Date.now().toString());
+
+            console.log('CAP: Fetched world settings:', settings);
+            return settings;
+        } catch (error) {
+            console.warn('CAP: Failed to fetch world settings, using defaults:', error);
+            return { speed: 1, unit_speed: 1 };
+        }
+    }
+
+    // Get world speed (synchronous, uses cached value)
+    function getWorldSpeed() {
+        return window.CAP._worldSettings?.speed || 1;
+    }
+
+    // Get unit speed modifier (synchronous, uses cached value)
+    function getUnitSpeedModifier() {
+        return window.CAP._worldSettings?.unit_speed || 1;
+    }
+
+    // Make world settings functions available
+    window.CAP.fetchWorldSettings = fetchWorldSettings;
+    window.CAP.getWorldSpeed = getWorldSpeed;
+    window.CAP.getUnitSpeedModifier = getUnitSpeedModifier;
+
     // Utility function to calculate send time based on arrival time, distance, and unit speed
     function calculateSendTime(arrivalTime, attackingCoords, targetCoords, slowestUnit) {
         try {
@@ -96,8 +152,8 @@
             
             // Get unit speed and world settings
             const unitSpeed = unitSpeeds[slowestUnit] || 18;
-            const worldSpeed = window.game_data ? (window.game_data.speed || 1) : 1;
-            const unitSpeed_config = window.game_data ? (window.game_data.config?.speed || 1) : 1;
+            const worldSpeed = window.CAP.getWorldSpeed();
+            const unitSpeed_config = window.CAP.getUnitSpeedModifier();
             
             // Calculate travel time in minutes
             const travelTimeMinutes = distance * unitSpeed / (worldSpeed * unitSpeed_config);
@@ -132,8 +188,8 @@
             
             // Get unit speed and world settings
             const unitSpeed = unitSpeeds[slowestUnit] || 18;
-            const worldSpeed = window.game_data ? (window.game_data.speed || 1) : 1;
-            const unitSpeed_config = window.game_data ? (window.game_data.config?.speed || 1) : 1;
+            const worldSpeed = window.CAP.getWorldSpeed();
+            const unitSpeed_config = window.CAP.getUnitSpeedModifier();
             
             // Calculate travel time in minutes
             const travelTimeMinutes = distance * unitSpeed / (worldSpeed * unitSpeed_config);
@@ -1010,5 +1066,12 @@
     }
 
     // Run on script load
-    createModal();
+    // Fetch world settings first, then create the modal
+    fetchWorldSettings().then(() => {
+        console.log('CAP: World settings loaded, speed:', window.CAP.getWorldSpeed(), 'unit_speed:', window.CAP.getUnitSpeedModifier());
+        createModal();
+    }).catch(error => {
+        console.warn('CAP: Failed to load world settings, continuing anyway:', error);
+        createModal();
+    });
 })();

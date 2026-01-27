@@ -409,8 +409,8 @@ window.CAP.State = (function() {
             
             // Get unit speed and world settings
             const unitSpeed = unitSpeeds[slowestUnit] || 18;
-            const worldSpeed = window.game_data ? (window.game_data.speed || 1) : 1;
-            const unitSpeed_config = window.game_data ? (window.game_data.config?.speed || 1) : 1;
+            const worldSpeed = window.CAP.getWorldSpeed();
+            const unitSpeed_config = window.CAP.getUnitSpeedModifier();
             
             // Calculate travel time in minutes
             const travelTimeMinutes = distance * unitSpeed / (worldSpeed * unitSpeed_config);
